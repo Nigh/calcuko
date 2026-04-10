@@ -6,16 +6,18 @@ import "../styles/global.css"
 
 interface Props {
 	title: string
+	description?: string
 }
 
-const { title } = Astro.props
+const { title, description = "支持多行变量公式与实时结果联动更新的 PWA 计算器。" } = Astro.props
 ---
 
 <!doctype html>
-<html lang="en">
+
+<html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="description" content="Astro description" />
+		<meta name="description" content={description} />
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
