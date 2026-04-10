@@ -5,6 +5,9 @@ R1 = 11
 R2 = 2.87
 R3 = 10
 
+// 这是一个纯表达式
+Vref / (Vo - Vref) * R1
+
 a = Vref / (Vo - Vref) * R1
 Rt = a * R2 / (R2 - a) - R3`;
 
@@ -13,6 +16,7 @@ Rt = a * R2 / (R2 - a) - R3`;
 	type LineResult = {
 		type: "empty" | "success" | "error";
 		text: string;
+		varName?: string;
 	};
 
 	const mathContext = {
@@ -39,15 +43,23 @@ Rt = a * R2 / (R2 - a) - R3`;
 	let source = sampleFormula;
 	let lineNumbers: HTMLDivElement | undefined;
 	let textarea: HTMLTextAreaElement | undefined;
+	let backdrop: HTMLDivElement | undefined;
 	let resultsPanel: HTMLDivElement | undefined;
 	let variableSnapshot: Record<string, unknown> = {};
 	let lineResults: LineResult[] = [];
 	let lines: string[] = [];
 
+	let cursorPosition = 0;
+	let matchedBracketIndex: number | null = null;
+
 	function formatValue(value: unknown) {
 		if (typeof value === "number") {
 			if (Number.isNaN(value)) return "NaN";
 			if (!Number.isFinite(value)) return String(value);
+			// 限制小数位数
+			if (!Number.isInteger(value)) {
+				return Number(value.toFixed(4)).toString();
+			}
 		}
 
 		if (typeof value === "string") return JSON.stringify(value);
@@ -70,22 +82,21 @@ Rt = a * R2 / (R2 - a) - R3`;
 		for (const rawLine of nextLines) {
 			const line = rawLine.trim();
 
-			if (!line) {
+			if (!line || line.startsWith("//")) {
 				nextLineResults.push({ type: "empty", text: "" });
 				continue;
 			}
 
-			const match = line.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+			const assignmentMatch = line.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
 
-			if (!match) {
-				nextLineResults.push({
-					type: "error",
-					text: "语法应为：变量 = 表达式",
-				});
-				continue;
+			let name: string | undefined;
+			let expression: string;
+
+			if (assignmentMatch) {
+				[, name, expression] = assignmentMatch;
+			} else {
+				expression = line;
 			}
-
-			const [, name, expression] = match;
 
 			try {
 				const evaluator = new Function(
@@ -94,9 +105,20 @@ Rt = a * R2 / (R2 - a) - R3`;
 				) as (scope: Record<string, unknown>) => unknown;
 
 				const value = evaluator(scope);
-				scope[name] = value;
-				nextSnapshot[name] = value;
-				nextLineResults.push({ type: "success", text: formatValue(value) });
+				if (name) {
+					scope[name] = value;
+					nextSnapshot[name] = value;
+					nextLineResults.push({ 
+						type: "success", 
+						text: `${name} = ${formatValue(value)}`,
+						varName: name
+					});
+				} else {
+					nextLineResults.push({ 
+						type: "success", 
+						text: formatValue(value) 
+					});
+				}
 			} catch (error) {
 				nextLineResults.push({
 					type: "error",
@@ -114,97 +136,301 @@ Rt = a * R2 / (R2 - a) - R3`;
 
 	function handleInput() {
 		localStorage.setItem(storageKey, source);
+		updateCursor();
 	}
 
 	function handleScroll() {
 		if (!textarea) return;
-		if (lineNumbers) lineNumbers.scrollTop = textarea.scrollTop;
-		if (resultsPanel) resultsPanel.scrollTop = textarea.scrollTop;
+		const { scrollTop, scrollLeft } = textarea;
+		if (lineNumbers) lineNumbers.scrollTop = scrollTop;
+		if (resultsPanel) resultsPanel.scrollTop = scrollTop;
+		if (backdrop) {
+			backdrop.scrollTop = scrollTop;
+			backdrop.scrollLeft = scrollLeft;
+		}
+	}
+
+	function updateCursor() {
+		if (!textarea) return;
+		cursorPosition = textarea.selectionStart;
+		findMatchedBracket();
+	}
+
+	function findMatchedBracket() {
+		matchedBracketIndex = null;
+		if (!source) return;
+
+		const charAtCursor = source[cursorPosition];
+		const charBeforeCursor = source[cursorPosition - 1];
+
+		let targetChar = "";
+		let direction = 0;
+		let startPos = -1;
+		let pairChar = "";
+
+		const pairs: Record<string, string> = {
+			"(": ")",
+			")": "(",
+			"[": "]",
+			"]": "[",
+			"{": "}",
+			"}": "{",
+		};
+
+		if (pairs[charAtCursor]) {
+			startPos = cursorPosition;
+			targetChar = charAtCursor;
+		} else if (pairs[charBeforeCursor]) {
+			startPos = cursorPosition - 1;
+			targetChar = charBeforeCursor;
+		}
+
+		if (startPos !== -1) {
+			pairChar = pairs[targetChar];
+			direction = "([{".includes(targetChar) ? 1 : -1;
+
+			let depth = 0;
+			for (let i = startPos; i >= 0 && i < source.length; i += direction) {
+				if (source[i] === targetChar) depth++;
+				else if (source[i] === pairChar) depth--;
+
+				if (depth === 0) {
+					matchedBracketIndex = i;
+					break;
+				}
+			}
+		}
 	}
 
 	function resetSample() {
 		source = sampleFormula;
 		localStorage.setItem(storageKey, source);
-		queueMicrotask(handleScroll);
+		queueMicrotask(() => {
+			handleScroll();
+			updateCursor();
+		});
 	}
 
 	if (typeof localStorage !== "undefined") {
 		source = localStorage.getItem(storageKey) || sampleFormula;
 	}
+
+	// 语法高亮逻辑
+	function highlight(text: string, currentIdx: number) {
+		// 正则匹配
+		// 1. 注释: // ...
+		// 2. 数值: \d+(\.\d+)?
+		// 3. 运算符: [+*/=-]
+		// 4. 变量/关键字: [A-Za-z_$][\w$]*
+		// 5. 括号: [()\[\]{}]
+		
+		const tokens = [
+			{ type: 'comment', regex: /\/\/.*/ },
+			{ type: 'number', regex: /\d+(\.\d+)?/ },
+			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
+			{ type: 'bracket', regex: /[()\[\]{}]/ },
+			{ type: 'variable', regex: /[A-Za-z_$][\w$]*/ },
+		];
+
+		let result = "";
+		let lastIdx = 0;
+		
+		// 简单的手动扫描或复杂的正则拆分
+		// 为了支持匹配括号高亮，我们需要知道每个 token 的原始位置
+		// 这里用一个简单的循环来构建 HTML
+		
+		let i = 0;
+		while (i < text.length) {
+			let matched = false;
+			
+			// 检查是否是匹配的括号
+			if (i === currentIdx || i === matchedBracketIndex) {
+				const char = text[i];
+				if ("()[]{}".includes(char)) {
+					const escapedChar = char === '&' ? '&' : (char === '<' ? '<' : (char === '>' ? '>' : char));
+					result += `<span class="bg-primary/30 text-primary font-bold underline">${escapedChar}</span>`;
+					i++;
+					matched = true;
+					continue;
+				}
+			}
+
+			for (const token of tokens) {
+				const substr = text.slice(i);
+				const m = substr.match(token.regex);
+				if (m && substr.indexOf(m[0]) === 0) {
+					let content = m[0];
+					let displayContent = content.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+					
+					result += `<span class="token-${token.type}">${displayContent}</span>`;
+					i += content.length;
+					matched = true;
+					break;
+				}
+			}
+
+			if (!matched) {
+				const char = text[i];
+				result += char === '&' ? '&' : (char === '<' ? '<' : (char === '>' ? '>' : char));
+				i++;
+			}
+		}
+
+		return result + "\n"; // 补一个换行确保对齐
+	}
 </script>
 
-<div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:py-10">
-	<section class="hero rounded-box border border-base-300 bg-base-200 p-6 shadow-sm">
-		<div class="hero-content w-full justify-between gap-6 max-md:flex-col max-md:items-start">
-			<div>
-				<p class="mb-2 text-sm font-semibold uppercase tracking-[0.2em] text-primary">Calcuko</p>
-				<h1 class="text-3xl font-bold md:text-4xl">多行变量公式计算器</h1>
-				<p class="mt-3 max-w-2xl text-base-content/70">
-					按行编写 <code>变量 = 表达式</code>，右侧会实时显示每一行的结果；修改任意一行后，后续依赖它的结果会自动重新计算。
-				</p>
+<div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 lg:py-6">
+	<!-- 紧凑的 Header -->
+	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
+		<div class="flex items-center gap-3">
+			<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-content shadow-lg shadow-primary/20">
+				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
 			</div>
-			<button class="btn btn-primary" type="button" on:click={resetSample}>恢复示例</button>
+			<div>
+				<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
+				<p class="text-xs font-medium text-base-content/50 uppercase tracking-widest">Multi-line Formula Calculator</p>
+			</div>
 		</div>
-	</section>
+		
+		<div class="flex items-center gap-2">
+			<a href="https://github.com/Nigh/calcuko" target="_blank" class="btn btn-ghost btn-sm gap-2 normal-case">
+				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+				<span class="hidden sm:inline">Star on GitHub</span>
+			</a>
+		</div>
+	</header>
 
-	<section class="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-		<div class="card border border-base-300 bg-base-100 shadow-sm">
-			<div class="card-body gap-4 p-0">
-				<div class="flex items-center justify-between border-b border-base-300 px-5 py-4">
-					<div>
-						<h2 class="text-lg font-semibold">公式编辑器</h2>
-						<p class="text-sm text-base-content/60">支持空行、变量引用和常用数学函数</p>
-					</div>
-					<div class="badge badge-outline">实时计算</div>
+	<section class="grid flex-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+		<div class="card flex flex-col border border-base-300 bg-base-100 shadow-sm overflow-hidden">
+			<!-- 编辑器标题栏 -->
+			<div class="flex items-center justify-between border-b border-base-300 bg-base-50/50 px-5 py-3">
+				<div class="flex items-center gap-2">
+					<div class="h-2 w-2 rounded-full bg-success"></div>
+					<h2 class="text-sm font-bold opacity-70">EDITOR</h2>
+				</div>
+				<div class="badge badge-sm badge-outline font-mono opacity-50">UTF-8</div>
+			</div>
+
+			<div class="grid flex-1 grid-cols-[48px_minmax(0,1fr)_minmax(160px,280px)] font-mono text-[13px] leading-6">
+				<!-- 行号 -->
+				<div bind:this={lineNumbers} class="select-none overflow-hidden border-r border-base-300 bg-base-200/40 px-2 py-4 text-right text-base-content/30">
+					{#each lines as _, index}
+						<div class="h-6">{index + 1}</div>
+					{/each}
 				</div>
 
-				<div class="grid min-h-[420px] grid-cols-[56px_minmax(0,1fr)_minmax(140px,220px)] overflow-hidden font-mono text-sm">
-					<div bind:this={lineNumbers} class="overflow-hidden border-r border-base-300 bg-base-200/60 px-3 py-4 text-right text-base-content/45">
-						{#each lines as _, index}
-							<div class="h-7 leading-7">{index + 1}</div>
-						{/each}
+				<!-- 核心编辑器容器 -->
+				<div class="relative overflow-hidden bg-base-100">
+					<!-- 背景高亮层 -->
+					<div 
+						bind:this={backdrop}
+						class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre px-4 py-4 text-transparent transition-none"
+						aria-hidden="true"
+					>
+						{@html highlight(source, cursorPosition)}
 					</div>
 
+					<!-- 输入层 -->
 					<textarea
 						bind:this={textarea}
 						bind:value={source}
-						class="min-h-[420px] resize-none overflow-auto border-none bg-transparent px-4 py-4 leading-7 outline-none"
-						placeholder="例如：&#10;a = 12&#10;b = a * 3&#10;c = sqrt(b)"
+						class="absolute inset-0 z-10 block h-full w-full resize-none overflow-auto border-none bg-transparent px-4 py-4 text-transparent caret-primary outline-none"
+						placeholder="输入公式，例如：&#10;a = 12&#10;b = a * 3&#10;sqrt(b)"
 						spellcheck="false"
 						on:input={handleInput}
 						on:scroll={handleScroll}
+						on:click={updateCursor}
+						on:keyup={updateCursor}
 					></textarea>
+				</div>
 
-					<div bind:this={resultsPanel} class="overflow-hidden border-l border-base-300 bg-base-200/30 px-4 py-4">
-						{#each lineResults as item}
-							<div class:text-error={item.type === 'error'} class:text-success={item.type === 'success'} class="h-7 overflow-hidden text-ellipsis whitespace-nowrap leading-7">
-								{item.text || ' '}
-							</div>
-						{/each}
-					</div>
+				<!-- 结果面板 -->
+				<div bind:this={resultsPanel} class="overflow-hidden border-l border-base-300 bg-base-200/20 px-4 py-4">
+					{#each lineResults as item}
+						<div 
+							class:text-error={item.type === 'error'} 
+							class:text-success={item.type === 'success'} 
+							class:font-bold={item.varName}
+							class="h-6 overflow-hidden text-ellipsis whitespace-nowrap opacity-90 transition-opacity hover:opacity-100"
+							title={item.text}
+						>
+							{item.text || ' '}
+						</div>
+					{/each}
 				</div>
 			</div>
 		</div>
 
+		<!-- 右侧面板 -->
 		<div class="flex flex-col gap-6">
 			<div class="card border border-base-300 bg-base-100 shadow-sm">
-				<div class="card-body">
-					<h2 class="card-title text-lg">变量快照</h2>
-					<pre class="max-h-[280px] overflow-auto rounded-box bg-base-200 p-4 text-sm">{JSON.stringify(variableSnapshot, null, 2)}</pre>
+				<div class="card-body p-5">
+					<div class="mb-2 flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
+						<h2 class="font-bold text-base-content/80">变量快照</h2>
+					</div>
+					<div class="rounded-xl bg-base-200/50 p-4">
+						<pre class="max-h-[240px] overflow-auto font-mono text-xs leading-5 text-base-content/70">{JSON.stringify(variableSnapshot, null, 2)}</pre>
+					</div>
 				</div>
 			</div>
 
 			<div class="card border border-base-300 bg-base-100 shadow-sm">
-				<div class="card-body">
-					<h2 class="card-title text-lg">使用说明</h2>
-					<ul class="list-disc space-y-2 pl-5 text-sm text-base-content/75">
-						<li>每行格式固定为：<code>变量 = 表达式</code></li>
-						<li>后续行可以直接引用前面已经计算成功的变量</li>
-						<li>修改任意一行后，整个公式链会重新计算</li>
-						<li>内置 <code>sin</code>、<code>cos</code>、<code>sqrt</code>、<code>pow</code>、<code>PI</code>、<code>E</code> 等</li>
+				<div class="card-body p-5">
+					<div class="mb-2 flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+						<h2 class="font-bold text-base-content/80">快速帮助</h2>
+					</div>
+					<ul class="space-y-2 text-xs leading-relaxed text-base-content/60">
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">1.</span>
+							<span>赋值：使用 <code>x = 10</code> 定义变量。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">2.</span>
+							<span>求值：直接输入表达式如 <code>sin(PI/2)</code>。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">3.</span>
+							<span>注释：支持 <code>//</code> 开头的行注释。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">4.</span>
+							<span>函数：内置 Math 所有常用函数和常量。</span>
+						</li>
 					</ul>
+					<div class="mt-4 border-t border-base-300 pt-4">
+						<button class="btn btn-primary btn-sm btn-block" type="button" on:click={resetSample}>
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+							恢复示例
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
 	</section>
 </div>
+
+<style>
+	/* 语法高亮颜色 */
+	:global(.token-comment) { color: #94a3b8; font-style: italic; }
+	:global(.token-number) { color: #f59e0b; }
+	:global(.token-operator) { color: #ec4899; font-weight: bold; }
+	:global(.token-bracket) { color: #6366f1; }
+	:global(.token-variable) { color: #0ea5e9; }
+
+	/* 隐藏滚动条但保持滚动功能 (针对 lineNumbers 和 resultsPanel) */
+	div::-webkit-scrollbar {
+		display: none;
+	}
+	div {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
+
+	textarea {
+		white-space: pre;
+		word-wrap: normal;
+	}
+</style>
