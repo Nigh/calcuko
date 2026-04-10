@@ -1,9 +1,13 @@
 # Calcuko(算子) - 多行变量公式计算器
 
+> **在线体验地址：[https://Nigh.github.io/calcuko/](https://Nigh.github.io/calcuko/)**
+
+> [!NOTE]
+> 本项目受 [calctus](https://github.com/shapoco/calctus) 启发而开发。  
+> 本人是`calctus`的重度用户，但是由于其为`C#`开发，只支持`Windows`环境，所以`Calcuko`作为一个跨平台的方案可以用于满足在其他平台上的公式计算需求。
+
 Calcuko 是一款专为工程师、学生和开发者设计的轻量级、响应式多行公式计算器。它允许你像写代码一样编写计算逻辑，支持变量定义、实时求值以及自动依赖联动，并可以作为 PWA 应用安装到手机或电脑上离线使用。
 
-> [!TIP]
-> **在线体验地址：[https://Nigh.github.io/calcuko/](https://Nigh.github.io/calcuko/)**
 
 ![Calcuko 主界面](./assets/hero.png)
 
