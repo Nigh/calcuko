@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from "svelte";
+	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 	const sampleFormula = `Vo = 13
 Vref = 2.5
 R1 = 11
@@ -11,10 +13,13 @@ Vref / (Vo - Vref) * R1
 a = Vref / (Vo - Vref) * R1
 Rt = a * R2 / (R2 - a) - R3
 
-// SI 词缀示例
+// 隐式乘法：数字后直接接变量名
+Omega = 2PI*R1 + 3R2
+
+// SI 词缀示例（也支持隐式乘法）
 R = 10k
 C = 100n
-f = 1 / (2 * PI * R * C)`;
+f = 1/(2PI*R*C)`;
 
 	const storageKey = "calcuko-formulas";
 
@@ -35,13 +40,37 @@ f = 1 / (2 * PI * R * C)`;
 		p: 1e-12,
 	};
 
-	function expandSiSuffixes(expr: string): { expanded: string; hasSi: boolean } {
+	function expandSiSuffixes(expr: string, scope: Record<string, unknown>): { expanded: string; hasSi: boolean } {
 		let hasSi = false;
+		// 按词缀长度降序排列，长词缀优先匹配
+		const siEntries = Object.entries(SI_MAP).sort((a, b) => b[0].length - a[0].length);
+
 		const expanded = expr.replace(
-			/(\d*\.?\d+)([TGMkmunp])(?![A-Za-z0-9_])/g,
-			(_match, num: string, suffix: string) => {
-				hasSi = true;
-				return `(${num}*${SI_MAP[suffix]})`;
+			/(\d*\.?\d+)([A-Za-z_$][\w$]*)/g,
+			(_match, num: string, ident: string) => {
+				// Stage 1: 完整标识符为已知变量/常量 → 隐式乘法
+				if (ident in scope) {
+					return `(${num}*${ident})`;
+				}
+
+				// Stage 2: 检查是否为 SI 词缀(+后续变量)
+				for (const [siSuffix, factor] of siEntries) {
+					if (ident.startsWith(siSuffix)) {
+						const rest = ident.slice(siSuffix.length);
+						if (rest === '') {
+							// 纯 SI 词缀: 10k → (10*1000)
+							hasSi = true;
+							return `(${num}*${factor})`;
+						} else if (/^[A-Za-z_$][\w$]*$/.test(rest)) {
+							// SI 词缀 + 变量: 10kOhm → (10*0.001*Ohm)
+							hasSi = true;
+							return `(${num}*${factor}*${rest})`;
+						}
+					}
+				}
+
+				// Stage 3: 兜底隐式乘法（eval 时若 ident 不存在会报 ReferenceError）
+				return `(${num}*${ident})`;
 			},
 		);
 		return { expanded, hasSi };
@@ -159,8 +188,8 @@ f = 1 / (2 * PI * R * C)`;
 			// 忽略行内空格
 			line = line.replace(/\s+/g, "");
 
-			// 展开 SI 词缀
-			const { expanded, hasSi } = expandSiSuffixes(line);
+			// 展开 SI 词缀（传入 scope 以检查已知变量名）
+			const { expanded, hasSi } = expandSiSuffixes(line, scope);
 
 			const assignmentMatch = expanded.match(/^([A-Za-z_$][\w$]*)=(.+)$/);
 
@@ -288,9 +317,16 @@ f = 1 / (2 * PI * R * C)`;
 		});
 	}
 
-	if (typeof localStorage !== "undefined") {
-		source = localStorage.getItem(storageKey) || sampleFormula;
-	}
+	onMount(() => {
+		const saved = typeof localStorage !== "undefined" ? localStorage.getItem(storageKey) : null;
+		if (saved) {
+			source = saved;
+		}
+		queueMicrotask(() => {
+			handleScroll();
+			updateCursor();
+		});
+	});
 
 	// 语法高亮逻辑
 	function highlight(text: string, currentIdx: number) {
@@ -303,7 +339,7 @@ f = 1 / (2 * PI * R * C)`;
 		
 		const tokens = [
 			{ type: 'comment', regex: /\/\/.*/ },
-			{ type: 'number', regex: /\d*\.?\d+[TGMkmunp](?![A-Za-z0-9_])/ },
+			{ type: 'number', regex: /\d*\.?\d+[TGMkmunp]/ },
 			{ type: 'number', regex: /\d*\.?\d+/ },
 			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
 			{ type: 'bracket', regex: /[()\[\]{}]/ },
@@ -362,8 +398,8 @@ f = 1 / (2 * PI * R * C)`;
 	<!-- 紧凑的 Header -->
 	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
 		<div class="flex items-center gap-3">
-			<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-content shadow-lg shadow-primary/20">
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+			<div class="flex h-10 w-10 items-center justify-center rounded-xl shadow-lg shadow-primary/20">
+				<img src={BASE_URL + "/favicon.svg"} alt="Calcuko" class="h-8 w-8" />
 			</div>
 			<div>
 				<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
@@ -484,6 +520,10 @@ f = 1 / (2 * PI * R * C)`;
 					<li class="flex gap-2">
 						<span class="text-primary font-bold">6.</span>
 						<span>空格：行内空格会被忽略，支持自由格式输入。</span>
+					</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">7.</span>
+						<span>隐式乘法：<code>2PI</code> <code>10kOhm</code> 自动展开。</span>
 					</li>
 					</ul>
 					<div class="mt-4 border-t border-base-300 pt-4">
