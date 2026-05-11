@@ -1,7 +1,7 @@
 {
   "name": "calcuko",
   "type": "module",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
