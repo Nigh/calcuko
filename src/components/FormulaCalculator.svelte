@@ -9,7 +9,12 @@ R3 = 10
 Vref / (Vo - Vref) * R1
 
 a = Vref / (Vo - Vref) * R1
-Rt = a * R2 / (R2 - a) - R3`;
+Rt = a * R2 / (R2 - a) - R3
+
+// SI 词缀示例
+R = 10k
+C = 100n
+f = 1 / (2 * PI * R * C)`;
 
 	const storageKey = "calcuko-formulas";
 
@@ -18,6 +23,59 @@ Rt = a * R2 / (R2 - a) - R3`;
 		text: string;
 		varName?: string;
 	};
+
+	const SI_MAP: Record<string, number> = {
+		T: 1e12,
+		G: 1e9,
+		M: 1e6,
+		k: 1e3,
+		m: 1e-3,
+		u: 1e-6,
+		n: 1e-9,
+		p: 1e-12,
+	};
+
+	function expandSiSuffixes(expr: string): { expanded: string; hasSi: boolean } {
+		let hasSi = false;
+		const expanded = expr.replace(
+			/(\d*\.?\d+)([TGMkmunp])(?![A-Za-z0-9_])/g,
+			(_match, num: string, suffix: string) => {
+				hasSi = true;
+				return `(${num}*${SI_MAP[suffix]})`;
+			},
+		);
+		return { expanded, hasSi };
+	}
+
+	function formatValueWithSi(value: number): string {
+		if (value === 0) return "0";
+		const absValue = Math.abs(value);
+		const suffixes: [number, string][] = [
+			[1e12, "T"],
+			[1e9, "G"],
+			[1e6, "M"],
+			[1e3, "k"],
+			[1e-3, "m"],
+			[1e-6, "u"],
+			[1e-9, "n"],
+			[1e-12, "p"],
+		];
+
+		for (const [threshold, suffix] of suffixes) {
+			const normalized = absValue / threshold;
+			if (normalized >= 1 && normalized < 1000) {
+				const roundedStr = (value / threshold).toFixed(4);
+				const rounded = Number(roundedStr);
+				// 回环校验：如果取整后的值无法还原原值，说明精度丢失，回退到标准格式
+				if (Math.abs(rounded * threshold - value) > 1e-9 * Math.max(1, value)) {
+					return formatValue(value);
+				}
+				return `${Number(roundedStr)}${suffix}`;
+			}
+		}
+
+		return formatValue(value);
+	}
 
 	const mathContext = {
 		abs: Math.abs,
@@ -80,14 +138,31 @@ Rt = a * R2 / (R2 - a) - R3`;
 		const nextSnapshot: Record<string, unknown> = {};
 
 		for (const rawLine of nextLines) {
-			const line = rawLine.trim();
+			let line = rawLine.trim();
 
 			if (!line || line.startsWith("//")) {
 				nextLineResults.push({ type: "empty", text: "" });
 				continue;
 			}
 
-			const assignmentMatch = line.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+			// 分离行内注释
+			const commentIdx = line.indexOf("//");
+			if (commentIdx !== -1) {
+				line = line.slice(0, commentIdx).trim();
+			}
+
+			if (!line) {
+				nextLineResults.push({ type: "empty", text: "" });
+				continue;
+			}
+
+			// 忽略行内空格
+			line = line.replace(/\s+/g, "");
+
+			// 展开 SI 词缀
+			const { expanded, hasSi } = expandSiSuffixes(line);
+
+			const assignmentMatch = expanded.match(/^([A-Za-z_$][\w$]*)=(.+)$/);
 
 			let name: string | undefined;
 			let expression: string;
@@ -95,7 +170,7 @@ Rt = a * R2 / (R2 - a) - R3`;
 			if (assignmentMatch) {
 				[, name, expression] = assignmentMatch;
 			} else {
-				expression = line;
+				expression = expanded;
 			}
 
 			try {
@@ -108,15 +183,17 @@ Rt = a * R2 / (R2 - a) - R3`;
 				if (name) {
 					scope[name] = value;
 					nextSnapshot[name] = value;
+					const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
 					nextLineResults.push({ 
 						type: "success", 
-						text: `${name} = ${formatValue(value)}`,
+						text: `${name} = ${displayValue}`,
 						varName: name
 					});
 				} else {
+					const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
 					nextLineResults.push({ 
 						type: "success", 
-						text: formatValue(value) 
+						text: displayValue,
 					});
 				}
 			} catch (error) {
@@ -226,7 +303,8 @@ Rt = a * R2 / (R2 - a) - R3`;
 		
 		const tokens = [
 			{ type: 'comment', regex: /\/\/.*/ },
-			{ type: 'number', regex: /\d+(\.\d+)?/ },
+			{ type: 'number', regex: /\d*\.?\d+[TGMkmunp](?![A-Za-z0-9_])/ },
+			{ type: 'number', regex: /\d*\.?\d+/ },
 			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
 			{ type: 'bracket', regex: /[()\[\]{}]/ },
 			{ type: 'variable', regex: /[A-Za-z_$][\w$]*/ },
@@ -395,10 +473,18 @@ Rt = a * R2 / (R2 - a) - R3`;
 							<span class="text-primary font-bold">3.</span>
 							<span>注释：支持 <code>//</code> 开头的行注释。</span>
 						</li>
-						<li class="flex gap-2">
-							<span class="text-primary font-bold">4.</span>
-							<span>函数：内置 Math 所有常用函数和常量。</span>
-						</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">4.</span>
+						<span>函数：内置 Math 所有常用函数和常量。</span>
+					</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">5.</span>
+						<span>词缀：支持 SI 词缀如 <code>10k</code> <code>4.7u</code> <code>100n</code>。</span>
+					</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">6.</span>
+						<span>空格：行内空格会被忽略，支持自由格式输入。</span>
+					</li>
 					</ul>
 					<div class="mt-4 border-t border-base-300 pt-4">
 						<button class="btn btn-primary btn-sm btn-block" type="button" on:click={resetSample}>
