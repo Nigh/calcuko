@@ -1,4 +1,4 @@
-# AGENT.md - Calcuko 项目上下文
+# AGENTS.md - Calcuko 项目上下文
 
 > **本文件供 Coding Agent 快速了解项目全貌。任何对项目的修改都必须同步更新本文件（见底部约束）。**
 
@@ -41,7 +41,6 @@ calcuko/
 └── src/
     ├── components/
     │   ├── FormulaCalculator.svelte  # ⭐ 核心组件 - 公式编辑器与求值引擎
-    │   ├── Counter.svelte            # ⚠️ 模板残留，未被任何页面引用
     │   └── ReloadPrompt.svelte       # PWA 更新提示 Toast
     ├── layouts/
     │   └── Layout.astro              # 全局 HTML 布局（含 ClientRouter、PWA manifest）
@@ -58,7 +57,8 @@ calcuko/
 - `index.astro` → `Layout.astro`（壳）→ `FormulaCalculator.svelte`（`client:load` 客户端渲染）
 
 ### FormulaCalculator.svelte 核心逻辑
-- **求值引擎**：逐行解析源码，支持 `变量 = 表达式` 赋值和纯表达式求值
+- **Header 图标**：使用 `<img src="/favicon.svg">` 引用 `public/favicon.svg` 作为品牌 logo，替代之前的内联计算器 SVG
+- **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
 - **实现方式**：`new Function("scope", "with (scope) { return (expr); }")` 执行表达式
 - **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等）
 - **变量作用域**：逐行累积 scope 对象，后续行可引用前面定义的变量
@@ -106,20 +106,19 @@ npm run preview      # 预览构建结果
 
 ## ⚠️ 注意事项
 
-1. **Counter.svelte 未使用**：模板脚手架残留，无页面引用，可安全删除
-2. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
-3. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
-4. **单文件组件**：所有核心逻辑集中在 `FormulaCalculator.svelte`（436 行），无拆分
-5. **无测试**：项目无测试文件和测试框架配置
-6. **无 CI/CD 配置文件**：未发现 GitHub Actions 等 CI 配置
+1. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
+2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
+3. **单文件组件**：所有核心逻辑集中在 `FormulaCalculator.svelte`（`BASE_URL` 约 570 行），无拆分
+4. **无测试**：项目无测试文件和测试框架配置
+5. **无 CI/CD 配置文件**：未发现 GitHub Actions 等 CI 配置
 
 ---
 
-## 🔒 强制约束：AGENT.md 同步更新规则
+## 🔒 强制约束：AGENTS.md 同步更新规则
 
 > **任何对本项目进行修改的 Coding Agent，都必须遵守以下规则：**
 
-1. **修改代码后必须更新本文件**：当你对项目进行了任何实质性修改（新增/删除/重命名文件、修改架构、更改依赖、变更配置等），你**必须**同步更新 `AGENT.md` 中对应的部分，确保其始终反映项目的最新状态。
+1. **修改代码后必须更新本文件**：当你对项目进行了任何实质性修改（新增/删除/重命名文件、修改架构、更改依赖、变更配置等），你**必须**同步更新 `AGENTS.md` 中对应的部分，确保其始终反映项目的最新状态。
 
 2. **需要更新的章节**：
    - 新增/删除/重命名文件 → 更新「目录结构」
@@ -129,6 +128,6 @@ npm run preview      # 预览构建结果
    - 修改部署配置 → 更新「部署配置」
    - 新增注意事项或发现 → 更新「注意事项」
 
-3. **更新时机**：在你使用 `attempt_completion` 提交最终结果**之前**，必须先完成 `AGENT.md` 的更新。
+3. **更新时机**：在你使用 `attempt_completion` 提交最终结果**之前**，必须先完成 `AGENTS.md` 的更新。
 
 4. **保持精简**：更新时保持文档简洁，只记录对后续 Agent 理解项目有帮助的信息，避免冗余。

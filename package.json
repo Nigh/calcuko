@@ -1,7 +1,7 @@
 {
-  "name": "astro-pwa-template",
+  "name": "calcuko",
   "type": "module",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

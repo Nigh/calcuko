@@ -1,4 +1,7 @@
-# Calcuko(算子) - 多行变量公式计算器
+<div align="center">
+  <img src="./public/pwa-512x512.png" height="180" alt="Calcuko Logo" />
+  <h1>Calcuko（算子）- 多行变量公式计算器</h1>
+</div>
 
 > **在线体验地址：[https://Nigh.github.io/calcuko/](https://Nigh.github.io/calcuko/)**
 
@@ -79,4 +82,3 @@ npm run dev
 
 # 构建生产版本 (PWA)
 npm run build
-```

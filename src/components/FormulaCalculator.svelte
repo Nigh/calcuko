@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 	const sampleFormula = `Vo = 13
 Vref = 2.5
 R1 = 11
@@ -397,8 +398,8 @@ f = 1/(2PI*R*C)`;
 	<!-- 紧凑的 Header -->
 	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
 		<div class="flex items-center gap-3">
-			<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-content shadow-lg shadow-primary/20">
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+			<div class="flex h-10 w-10 items-center justify-center rounded-xl shadow-lg shadow-primary/20">
+				<img src={BASE_URL + "/favicon.svg"} alt="Calcuko" class="h-8 w-8" />
 			</div>
 			<div>
 				<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
