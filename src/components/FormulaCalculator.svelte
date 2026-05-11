@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from "svelte";
+	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 	const sampleFormula = `Vo = 13
 Vref = 2.5
 R1 = 11
@@ -9,7 +11,15 @@ R3 = 10
 Vref / (Vo - Vref) * R1
 
 a = Vref / (Vo - Vref) * R1
-Rt = a * R2 / (R2 - a) - R3`;
+Rt = a * R2 / (R2 - a) - R3
+
+// 隐式乘法：数字后直接接变量名
+Omega = 2PI*R1 + 3R2
+
+// SI 词缀示例（也支持隐式乘法）
+R = 10k
+C = 100n
+f = 1/(2PI*R*C)`;
 
 	const storageKey = "calcuko-formulas";
 
@@ -18,6 +28,83 @@ Rt = a * R2 / (R2 - a) - R3`;
 		text: string;
 		varName?: string;
 	};
+
+	const SI_MAP: Record<string, number> = {
+		T: 1e12,
+		G: 1e9,
+		M: 1e6,
+		k: 1e3,
+		m: 1e-3,
+		u: 1e-6,
+		n: 1e-9,
+		p: 1e-12,
+	};
+
+	function expandSiSuffixes(expr: string, scope: Record<string, unknown>): { expanded: string; hasSi: boolean } {
+		let hasSi = false;
+		// 按词缀长度降序排列，长词缀优先匹配
+		const siEntries = Object.entries(SI_MAP).sort((a, b) => b[0].length - a[0].length);
+
+		const expanded = expr.replace(
+			/(\d*\.?\d+)([A-Za-z_$][\w$]*)/g,
+			(_match, num: string, ident: string) => {
+				// Stage 1: 完整标识符为已知变量/常量 → 隐式乘法
+				if (ident in scope) {
+					return `(${num}*${ident})`;
+				}
+
+				// Stage 2: 检查是否为 SI 词缀(+后续变量)
+				for (const [siSuffix, factor] of siEntries) {
+					if (ident.startsWith(siSuffix)) {
+						const rest = ident.slice(siSuffix.length);
+						if (rest === '') {
+							// 纯 SI 词缀: 10k → (10*1000)
+							hasSi = true;
+							return `(${num}*${factor})`;
+						} else if (/^[A-Za-z_$][\w$]*$/.test(rest)) {
+							// SI 词缀 + 变量: 10kOhm → (10*0.001*Ohm)
+							hasSi = true;
+							return `(${num}*${factor}*${rest})`;
+						}
+					}
+				}
+
+				// Stage 3: 兜底隐式乘法（eval 时若 ident 不存在会报 ReferenceError）
+				return `(${num}*${ident})`;
+			},
+		);
+		return { expanded, hasSi };
+	}
+
+	function formatValueWithSi(value: number): string {
+		if (value === 0) return "0";
+		const absValue = Math.abs(value);
+		const suffixes: [number, string][] = [
+			[1e12, "T"],
+			[1e9, "G"],
+			[1e6, "M"],
+			[1e3, "k"],
+			[1e-3, "m"],
+			[1e-6, "u"],
+			[1e-9, "n"],
+			[1e-12, "p"],
+		];
+
+		for (const [threshold, suffix] of suffixes) {
+			const normalized = absValue / threshold;
+			if (normalized >= 1 && normalized < 1000) {
+				const roundedStr = (value / threshold).toFixed(4);
+				const rounded = Number(roundedStr);
+				// 回环校验：如果取整后的值无法还原原值，说明精度丢失，回退到标准格式
+				if (Math.abs(rounded * threshold - value) > 1e-9 * Math.max(1, value)) {
+					return formatValue(value);
+				}
+				return `${Number(roundedStr)}${suffix}`;
+			}
+		}
+
+		return formatValue(value);
+	}
 
 	const mathContext = {
 		abs: Math.abs,
@@ -80,14 +167,31 @@ Rt = a * R2 / (R2 - a) - R3`;
 		const nextSnapshot: Record<string, unknown> = {};
 
 		for (const rawLine of nextLines) {
-			const line = rawLine.trim();
+			let line = rawLine.trim();
 
 			if (!line || line.startsWith("//")) {
 				nextLineResults.push({ type: "empty", text: "" });
 				continue;
 			}
 
-			const assignmentMatch = line.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+			// 分离行内注释
+			const commentIdx = line.indexOf("//");
+			if (commentIdx !== -1) {
+				line = line.slice(0, commentIdx).trim();
+			}
+
+			if (!line) {
+				nextLineResults.push({ type: "empty", text: "" });
+				continue;
+			}
+
+			// 忽略行内空格
+			line = line.replace(/\s+/g, "");
+
+			// 展开 SI 词缀（传入 scope 以检查已知变量名）
+			const { expanded, hasSi } = expandSiSuffixes(line, scope);
+
+			const assignmentMatch = expanded.match(/^([A-Za-z_$][\w$]*)=(.+)$/);
 
 			let name: string | undefined;
 			let expression: string;
@@ -95,7 +199,7 @@ Rt = a * R2 / (R2 - a) - R3`;
 			if (assignmentMatch) {
 				[, name, expression] = assignmentMatch;
 			} else {
-				expression = line;
+				expression = expanded;
 			}
 
 			try {
@@ -108,15 +212,17 @@ Rt = a * R2 / (R2 - a) - R3`;
 				if (name) {
 					scope[name] = value;
 					nextSnapshot[name] = value;
+					const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
 					nextLineResults.push({ 
 						type: "success", 
-						text: `${name} = ${formatValue(value)}`,
+						text: `${name} = ${displayValue}`,
 						varName: name
 					});
 				} else {
+					const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
 					nextLineResults.push({ 
 						type: "success", 
-						text: formatValue(value) 
+						text: displayValue,
 					});
 				}
 			} catch (error) {
@@ -211,9 +317,16 @@ Rt = a * R2 / (R2 - a) - R3`;
 		});
 	}
 
-	if (typeof localStorage !== "undefined") {
-		source = localStorage.getItem(storageKey) || sampleFormula;
-	}
+	onMount(() => {
+		const saved = typeof localStorage !== "undefined" ? localStorage.getItem(storageKey) : null;
+		if (saved) {
+			source = saved;
+		}
+		queueMicrotask(() => {
+			handleScroll();
+			updateCursor();
+		});
+	});
 
 	// 语法高亮逻辑
 	function highlight(text: string, currentIdx: number) {
@@ -226,7 +339,8 @@ Rt = a * R2 / (R2 - a) - R3`;
 		
 		const tokens = [
 			{ type: 'comment', regex: /\/\/.*/ },
-			{ type: 'number', regex: /\d+(\.\d+)?/ },
+			{ type: 'number', regex: /\d*\.?\d+[TGMkmunp]/ },
+			{ type: 'number', regex: /\d*\.?\d+/ },
 			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
 			{ type: 'bracket', regex: /[()\[\]{}]/ },
 			{ type: 'variable', regex: /[A-Za-z_$][\w$]*/ },
@@ -284,8 +398,8 @@ Rt = a * R2 / (R2 - a) - R3`;
 	<!-- 紧凑的 Header -->
 	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
 		<div class="flex items-center gap-3">
-			<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-content shadow-lg shadow-primary/20">
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+			<div class="flex h-10 w-10 items-center justify-center rounded-xl shadow-lg shadow-primary/20">
+				<img src={BASE_URL + "/favicon.svg"} alt="Calcuko" class="h-8 w-8" />
 			</div>
 			<div>
 				<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
@@ -395,10 +509,22 @@ Rt = a * R2 / (R2 - a) - R3`;
 							<span class="text-primary font-bold">3.</span>
 							<span>注释：支持 <code>//</code> 开头的行注释。</span>
 						</li>
-						<li class="flex gap-2">
-							<span class="text-primary font-bold">4.</span>
-							<span>函数：内置 Math 所有常用函数和常量。</span>
-						</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">4.</span>
+						<span>函数：内置 Math 所有常用函数和常量。</span>
+					</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">5.</span>
+						<span>词缀：支持 SI 词缀如 <code>10k</code> <code>4.7u</code> <code>100n</code>。</span>
+					</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">6.</span>
+						<span>空格：行内空格会被忽略，支持自由格式输入。</span>
+					</li>
+					<li class="flex gap-2">
+						<span class="text-primary font-bold">7.</span>
+						<span>隐式乘法：<code>2PI</code> <code>10kOhm</code> 自动展开。</span>
+					</li>
 					</ul>
 					<div class="mt-4 border-t border-base-300 pt-4">
 						<button class="btn btn-primary btn-sm btn-block" type="button" on:click={resetSample}>
