@@ -7,16 +7,20 @@ R1 = 11
 R2 = 2.87
 R3 = 10
 
-// 这是一个纯表达式
-Vref / (Vo - Vref) * R1
+// Unicode 变量名
+半径 = 5
+π = PI
+面积 = π * 半径**2
 
-a = Vref / (Vo - Vref) * R1
-Rt = a * R2 / (R2 - a) - R3
+// Emoji 变量名
+😊 = 10
+🔥 = 42
+快乐 = 😊 * 🔥
 
 // 隐式乘法：数字后直接接变量名
 Omega = 2PI*R1 + 3R2
 
-// SI 词缀示例（也支持隐式乘法）
+// SI 词缀示例
 R = 10k
 C = 100n
 f = 1/(2PI*R*C)`;
@@ -40,17 +44,26 @@ f = 1/(2PI*R*C)`;
 		p: 1e-12,
 	};
 
+	// 若标识符含 emoji，用 scope["name"] 包装（JS 解析器不支持 emoji 标识符）
+	function wrapIdent(ident: string): string {
+		if (/\p{Extended_Pictographic}/u.test(ident)) {
+			const escaped = ident.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+			return `scope["${escaped}"]`;
+		}
+		return ident;
+	}
+
 	function expandSiSuffixes(expr: string, scope: Record<string, unknown>): { expanded: string; hasSi: boolean } {
 		let hasSi = false;
 		// 按词缀长度降序排列，长词缀优先匹配
 		const siEntries = Object.entries(SI_MAP).sort((a, b) => b[0].length - a[0].length);
 
 		const expanded = expr.replace(
-			/(\d*\.?\d+)([A-Za-z_$][\w$]*)/g,
+			/(\d*\.?\d+)((?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*)/gu,
 			(_match, num: string, ident: string) => {
 				// Stage 1: 完整标识符为已知变量/常量 → 隐式乘法
 				if (ident in scope) {
-					return `(${num}*${ident})`;
+					return `(${num}*${wrapIdent(ident)})`;
 				}
 
 				// Stage 2: 检查是否为 SI 词缀(+后续变量)
@@ -61,16 +74,16 @@ f = 1/(2PI*R*C)`;
 							// 纯 SI 词缀: 10k → (10*1000)
 							hasSi = true;
 							return `(${num}*${factor})`;
-						} else if (/^[A-Za-z_$][\w$]*$/.test(rest)) {
+						} else if (/^(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*$/u.test(rest)) {
 							// SI 词缀 + 变量: 10kOhm → (10*0.001*Ohm)
 							hasSi = true;
-							return `(${num}*${factor}*${rest})`;
+							return `(${num}*${factor}*${wrapIdent(rest)})`;
 						}
 					}
 				}
 
 				// Stage 3: 兜底隐式乘法（eval 时若 ident 不存在会报 ReferenceError）
-				return `(${num}*${ident})`;
+				return `(${num}*${wrapIdent(ident)})`;
 			},
 		);
 		return { expanded, hasSi };
@@ -159,6 +172,21 @@ f = 1/(2PI*R*C)`;
 		}
 	}
 
+	// 将表达式中含 emoji 的变量名替换为 scope["name"] 语法
+	function prepareExpression(expr: string): string {
+		return expr.replace(
+			/(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*/gu,
+			(match) => {
+				// 若包含 emoji，用 scope["name"] 替代（JS 解析器不支持 emoji 标识符）
+				if (/\p{Extended_Pictographic}/u.test(match)) {
+					const escaped = match.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+					return `scope["${escaped}"]`;
+				}
+				return match;
+			},
+		);
+	}
+
 	function evaluateSource(input: string) {
 		const normalized = input.replace(/\r\n?/g, "\n");
 		const nextLines = normalized.split("\n");
@@ -191,7 +219,7 @@ f = 1/(2PI*R*C)`;
 			// 展开 SI 词缀（传入 scope 以检查已知变量名）
 			const { expanded, hasSi } = expandSiSuffixes(line, scope);
 
-			const assignmentMatch = expanded.match(/^([A-Za-z_$][\w$]*)=(.+)$/);
+			const assignmentMatch = expanded.match(/^((?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*)=(.+)$/u);
 
 			let name: string | undefined;
 			let expression: string;
@@ -201,6 +229,9 @@ f = 1/(2PI*R*C)`;
 			} else {
 				expression = expanded;
 			}
+
+			// 处理 emoji 变量名，替换为 scope["name"] 语法
+			expression = prepareExpression(expression);
 
 			try {
 				const evaluator = new Function(
@@ -343,7 +374,7 @@ f = 1/(2PI*R*C)`;
 			{ type: 'number', regex: /\d*\.?\d+/ },
 			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
 			{ type: 'bracket', regex: /[()\[\]{}]/ },
-			{ type: 'variable', regex: /[A-Za-z_$][\w$]*/ },
+			{ type: 'variable', regex: /(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*/u },
 		];
 
 		let result = "";

@@ -62,6 +62,7 @@ calcuko/
 - **实现方式**：`new Function("scope", "with (scope) { return (expr); }")` 执行表达式
 - **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等）
 - **变量作用域**：逐行累积 scope 对象，后续行可引用前面定义的变量
+- **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
 - **注释**：`//` 开头的行和空行被跳过，行内 `//` 后内容作为注释忽略
 - **SI 词缀支持**：数字尾部支持 SI 单位词缀 T/G/M/k/m/u/n/p，求值前自动展开为科学计数法；仅当输入行使用了 SI 词缀时，结果才以 SI 词缀格式显示
