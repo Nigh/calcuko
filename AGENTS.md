@@ -70,10 +70,14 @@ calcuko/
 - **结果格式化**：小数限制 4 位，NaN/Infinity 特殊处理，带 SI 词缀的结果自动以词缀格式化
 - **语法高亮**：自定义 tokenizer，支持注释、数值（含 SI 词缀）、运算符、括号、变量六种 token 类型
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
+- **帮助弹窗**：Header 中的「帮助」按钮弹出 DaisyUI modal，展示 7 条基本用法说明、16 个 Math 函数和 2 个常量的详细列表；内置 `mathFunctions` 和 `mathConstants` 对象定义展示内容
+- **编辑器标题栏操作**：标题栏右侧放置「示例」和「清除」按钮——示例载入内置公式，清除清空编辑器及 localStorage
+- **变量快照复制**：变量快照以 button 形式展示 `name = value`，点击通过 `navigator.clipboard.writeText()` 复制值，并显示 2 秒自动消失的「已复制」Toast
 
 ### 数据持久化
 - 使用 `localStorage`（key: `calcuko-formulas`）保存用户输入
 - 页面加载时从 localStorage 恢复，无数据则使用内置示例公式
+- 清除按钮会清空 localStorage 中的公式数据
 
 ### PWA 配置
 - `registerType: 'autoUpdate'`，自动更新 Service Worker
@@ -109,7 +113,7 @@ npm run preview      # 预览构建结果
 
 1. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
 2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
-3. **单文件组件**：所有核心逻辑集中在 `FormulaCalculator.svelte`（`BASE_URL` 约 570 行），无拆分
+3. **单文件组件**：所有核心逻辑集中在 `FormulaCalculator.svelte`（约 690+ 行），无拆分
 4. **无测试**：项目无测试文件和测试框架配置
 5. **无 CI/CD 配置文件**：未发现 GitHub Actions 等 CI 配置
 

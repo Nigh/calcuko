@@ -119,6 +119,30 @@ f = 1/(2PI*R*C)`;
 		return formatValue(value);
 	}
 
+	const mathFunctions: Record<string, string> = {
+		abs: "Math.abs(x) — 绝对值",
+		acos: "Math.acos(x) — 反余弦",
+		asin: "Math.asin(x) — 反正弦",
+		atan: "Math.atan(x) — 反正切",
+		ceil: "Math.ceil(x) — 向上取整",
+		cos: "Math.cos(x) — 余弦",
+		exp: "Math.exp(x) — e^x 指数",
+		floor: "Math.floor(x) — 向下取整",
+		log: "Math.log(x) — 自然对数 ln(x)",
+		max: "Math.max(a, b, ...) — 最大值",
+		min: "Math.min(a, b, ...) — 最小值",
+		pow: "Math.pow(x, y) — x 的 y 次幂",
+		round: "Math.round(x) — 四舍五入",
+		sin: "Math.sin(x) — 正弦",
+		sqrt: "Math.sqrt(x) — 平方根",
+		tan: "Math.tan(x) — 正切",
+	};
+
+	const mathConstants: Record<string, string> = {
+		PI: "π (圆周率 ≈ 3.14159)",
+		E: "自然对数的底数 (≈ 2.71828)",
+	};
+
 	const mathContext = {
 		abs: Math.abs,
 		acos: Math.acos,
@@ -151,6 +175,10 @@ f = 1/(2PI*R*C)`;
 
 	let cursorPosition = 0;
 	let matchedBracketIndex: number | null = null;
+
+	let helpDialogOpen = false;
+	let showCopyToast = false;
+	let copyToastText = "";
 
 	function formatValue(value: unknown) {
 		if (typeof value === "number") {
@@ -348,6 +376,47 @@ f = 1/(2PI*R*C)`;
 		});
 	}
 
+	function clearEditor() {
+		source = "";
+		localStorage.setItem(storageKey, source);
+		queueMicrotask(() => {
+			handleScroll();
+			updateCursor();
+		});
+	}
+
+	function openHelp() {
+		helpDialogOpen = true;
+	}
+
+	function closeHelp() {
+		helpDialogOpen = false;
+	}
+
+	function handleDialogOverlayClick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (target.classList.contains("dialog-overlay")) {
+			closeHelp();
+		}
+	}
+
+	function copyValue(value: string) {
+		navigator.clipboard.writeText(value).then(() => {
+			copyToastText = `已复制: ${value}`;
+			showCopyToast = true;
+			setTimeout(() => {
+				showCopyToast = false;
+			}, 2000);
+		}).catch(() => {
+			// fallback
+			copyToastText = "复制失败";
+			showCopyToast = true;
+			setTimeout(() => {
+				showCopyToast = false;
+			}, 2000);
+		});
+	}
+
 	onMount(() => {
 		const saved = typeof localStorage !== "undefined" ? localStorage.getItem(storageKey) : null;
 		if (saved) {
@@ -439,6 +508,10 @@ f = 1/(2PI*R*C)`;
 		</div>
 		
 		<div class="flex items-center gap-2">
+			<button class="btn btn-ghost btn-sm gap-1 normal-case" type="button" on:click={openHelp}>
+				<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+				<span class="hidden sm:inline">帮助</span>
+			</button>
 			<a href="https://github.com/Nigh/calcuko" target="_blank" class="btn btn-ghost btn-sm gap-2 normal-case">
 				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
 				<span class="hidden sm:inline">Star on GitHub</span>
@@ -454,7 +527,17 @@ f = 1/(2PI*R*C)`;
 					<div class="h-2 w-2 rounded-full bg-success"></div>
 					<h2 class="text-sm font-bold opacity-70">EDITOR</h2>
 				</div>
-				<div class="badge badge-sm badge-outline font-mono opacity-50">UTF-8</div>
+				<div class="flex items-center gap-2">
+					<button class="btn btn-ghost btn-xs gap-1 normal-case" type="button" on:click={resetSample} title="载入示例公式">
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+						示例
+					</button>
+					<button class="btn btn-ghost btn-xs gap-1 normal-case text-error" type="button" on:click={clearEditor} title="清空编辑器">
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+						清除
+					</button>
+					<div class="badge badge-sm badge-outline font-mono opacity-50">UTF-8</div>
+				</div>
 			</div>
 
 			<div class="grid flex-1 grid-cols-[48px_minmax(0,1fr)_minmax(160px,280px)] font-mono text-[13px] leading-6">
@@ -516,58 +599,131 @@ f = 1/(2PI*R*C)`;
 						<h2 class="font-bold text-base-content/80">变量快照</h2>
 					</div>
 					<div class="rounded-xl bg-base-200/50 p-4">
-						<pre class="max-h-[240px] overflow-auto font-mono text-xs leading-5 text-base-content/70">{JSON.stringify(variableSnapshot, null, 2)}</pre>
-					</div>
-				</div>
-			</div>
-
-			<div class="card border border-base-300 bg-base-100 shadow-sm">
-				<div class="card-body p-5">
-					<div class="mb-2 flex items-center gap-2">
-						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-						<h2 class="font-bold text-base-content/80">快速帮助</h2>
-					</div>
-					<ul class="space-y-2 text-xs leading-relaxed text-base-content/60">
-						<li class="flex gap-2">
-							<span class="text-primary font-bold">1.</span>
-							<span>赋值：使用 <code>x = 10</code> 定义变量。</span>
-						</li>
-						<li class="flex gap-2">
-							<span class="text-primary font-bold">2.</span>
-							<span>求值：直接输入表达式如 <code>sin(PI/2)</code>。</span>
-						</li>
-						<li class="flex gap-2">
-							<span class="text-primary font-bold">3.</span>
-							<span>注释：支持 <code>//</code> 开头的行注释。</span>
-						</li>
-					<li class="flex gap-2">
-						<span class="text-primary font-bold">4.</span>
-						<span>函数：内置 Math 所有常用函数和常量。</span>
-					</li>
-					<li class="flex gap-2">
-						<span class="text-primary font-bold">5.</span>
-						<span>词缀：支持 SI 词缀如 <code>10k</code> <code>4.7u</code> <code>100n</code>。</span>
-					</li>
-					<li class="flex gap-2">
-						<span class="text-primary font-bold">6.</span>
-						<span>空格：行内空格会被忽略，支持自由格式输入。</span>
-					</li>
-					<li class="flex gap-2">
-						<span class="text-primary font-bold">7.</span>
-						<span>隐式乘法：<code>2PI</code> <code>10kOhm</code> 自动展开。</span>
-					</li>
-					</ul>
-					<div class="mt-4 border-t border-base-300 pt-4">
-						<button class="btn btn-primary btn-sm btn-block" type="button" on:click={resetSample}>
-							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
-							恢复示例
-						</button>
+						{#if Object.keys(variableSnapshot).length === 0}
+							<p class="text-xs text-base-content/40 italic">暂无变量</p>
+						{:else}
+							<div class="flex flex-wrap gap-2">
+								{#each Object.entries(variableSnapshot) as [name, value]}
+									<button
+										class="btn btn-ghost btn-xs h-auto min-h-0 gap-1 rounded-lg border border-base-300 px-2.5 py-1.5 text-xs font-mono normal-case hover:border-primary/40 hover:bg-primary/5 transition-colors"
+										type="button"
+										on:click={() => copyValue(formatValue(value))}
+										title="点击复制值"
+									>
+										<span class="font-semibold text-base-content/70">{name}</span>
+										<span class="text-base-content/50">=</span>
+										<span class="text-primary">{formatValue(value)}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
 		</div>
 	</section>
 </div>
+
+<!-- 帮助弹窗 Modal -->
+{#if helpDialogOpen}
+	<div
+		class="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+		on:click={handleDialogOverlayClick}
+		role="dialog"
+		aria-modal="true"
+	>
+		<div class="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-base-300 bg-base-100 shadow-2xl">
+			<div class="sticky top-0 z-10 flex items-center justify-between border-b border-base-300 bg-base-100 px-6 py-4">
+				<div class="flex items-center gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+					<h2 class="text-lg font-bold">帮助</h2>
+				</div>
+				<button class="btn btn-ghost btn-sm btn-square" type="button" on:click={closeHelp}>
+					<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+				</button>
+			</div>
+
+			<div class="space-y-6 px-6 py-5">
+				<!-- 基本用法 -->
+				<div>
+					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">基本用法</h3>
+					<ul class="space-y-2 text-sm leading-relaxed text-base-content/70">
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">1.</span>
+							<span>赋值：使用 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">x = 10</code> 定义变量。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">2.</span>
+							<span>求值：直接输入表达式如 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">sin(PI/2)</code>。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">3.</span>
+							<span>注释：支持 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">//</code> 开头的行注释。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">4.</span>
+							<span>函数：内置 Math 所有常用函数和常量。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">5.</span>
+							<span>词缀：支持 SI 词缀如 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">10k</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">4.7u</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">100n</code>。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">6.</span>
+							<span>空格：行内空格会被忽略，支持自由格式输入。</span>
+						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">7.</span>
+							<span>隐式乘法：<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">2PI</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">10kOhm</code> 自动展开。</span>
+						</li>
+					</ul>
+				</div>
+
+				<!-- 常用函数 -->
+				<div>
+					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">常用函数</h3>
+					<div class="grid grid-cols-2 gap-2">
+						{#each Object.entries(mathFunctions) as [name, desc]}
+							<div class="rounded-lg bg-base-200/50 px-3 py-2">
+								<div class="font-mono text-xs font-bold text-primary">{name}</div>
+								<div class="mt-0.5 text-xs text-base-content/50">{desc}</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+
+				<!-- 常量 -->
+				<div>
+					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">常量</h3>
+					<div class="flex gap-3">
+						{#each Object.entries(mathConstants) as [name, desc]}
+							<div class="flex-1 rounded-lg bg-base-200/50 px-3 py-2">
+								<div class="font-mono text-xs font-bold text-primary">{name}</div>
+								<div class="mt-0.5 text-xs text-base-content/50">{desc}</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			</div>
+
+			<div class="border-t border-base-300 px-6 py-4">
+				<button class="btn btn-primary btn-block" type="button" on:click={closeHelp}>
+					知道了
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- 复制成功 Toast -->
+{#if showCopyToast}
+	<div class="toast toast-top toast-end z-[60]">
+		<div class="alert alert-success flex items-center gap-2 shadow-lg">
+			<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+			<span class="text-sm">{copyToastText}</span>
+		</div>
+	</div>
+{/if}
 
 <style>
 	/* 语法高亮颜色 */
@@ -589,5 +745,21 @@ f = 1/(2PI*R*C)`;
 	textarea {
 		white-space: pre;
 		word-wrap: normal;
+	}
+
+	/* Toast 动画 */
+	.toast {
+		animation: toast-in 0.3s ease-out;
+	}
+
+	@keyframes toast-in {
+		from {
+			opacity: 0;
+			transform: translateY(-0.5rem);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 </style>
