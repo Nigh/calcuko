@@ -23,7 +23,19 @@ Omega = 2PI*R1 + 3R2
 // SI 词缀示例
 R = 10k
 C = 100n
-f = 1/(2PI*R*C)`;
+f = 1/(2PI*R*C)
+
+// 进制字面量：0x十六进制 0b二进制 0八进制
+hexVal = 0xFF
+binVal = 0b1101
+octVal = 0777
+sum = hexVal + binVal + octVal
+
+// 进制转换函数：hex() bin() oct()
+dec = 255
+h = hex(dec)
+b = bin(dec)
+o = oct(dec)`;
 
 	const storageKey = "calcuko-formulas";
 
@@ -43,6 +55,17 @@ f = 1/(2PI*R*C)`;
 		n: 1e-9,
 		p: 1e-12,
 	};
+
+	// 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
+	function expandRadixLiterals(expr: string): string {
+		// 先替换 0x（十六进制）
+		expr = expr.replace(/0x([0-9a-fA-F]+)/g, (_m, digits) => String(parseInt(digits, 16)));
+		// 再替换 0b（二进制）
+		expr = expr.replace(/0b([01]+)/g, (_m, digits) => String(parseInt(digits, 2)));
+		// 最后替换 0（八进制），谨慎匹配：前导0且后跟至少一位[0-7]，但排除单独0和0紧跟小数点
+		expr = expr.replace(/(?<!\d)0([0-7]+)/g, (_m, digits) => String(parseInt(digits, 8)));
+		return expr;
+	}
 
 	// 若标识符含 emoji，用 scope["name"] 包装（JS 解析器不支持 emoji 标识符）
 	function wrapIdent(ident: string): string {
@@ -136,12 +159,55 @@ f = 1/(2PI*R*C)`;
 		sin: "Math.sin(x) — 正弦",
 		sqrt: "Math.sqrt(x) — 平方根",
 		tan: "Math.tan(x) — 正切",
+		hex: "hex(n) — 转十六进制 (0xFFFF)",
+		bin: "bin(n) — 转二进制 (0b1100 1010)",
+		oct: "oct(n) — 转八进制 (0777)",
 	};
 
 	const mathConstants: Record<string, string> = {
 		PI: "π (圆周率 ≈ 3.14159)",
 		E: "自然对数的底数 (≈ 2.71828)",
 	};
+
+	// 进制转换函数
+	function toHex(n: number): string {
+		if (!Number.isFinite(n)) return String(n);
+		const int = Math.round(n);
+		const hexStr = (int >>> 0).toString(16).toUpperCase();
+		return "0x" + formatRadixString(hexStr, 4);
+	}
+
+	function toBin(n: number): string {
+		if (!Number.isFinite(n)) return String(n);
+		const int = Math.round(n);
+		// 使用无符号右移处理负数
+		const binStr = (int >>> 0).toString(2);
+		return "0b" + formatRadixString(binStr, 4);
+	}
+
+	function toOct(n: number): string {
+		if (!Number.isFinite(n)) return String(n);
+		const int = Math.round(n);
+		const octStr = (int >>> 0).toString(8);
+		return "0" + formatRadixString(octStr, 4);
+	}
+
+	// 从低位起每 groupSize 位添加空格
+	function formatRadixString(str: string, groupSize: number): string {
+		// 补齐到 groupSize 的整数倍，从低位分组
+		const padLen = str.length % groupSize;
+		const padded = padLen !== 0 ? str.padStart(str.length + (groupSize - padLen), "0") : str;
+		const groups: string[] = [];
+		for (let i = 0; i < padded.length; i += groupSize) {
+			groups.push(padded.slice(i, i + groupSize));
+		}
+		return groups.join(" ").replace(/^0+/, "") || "0";
+	}
+
+	// 判断字符串是否是以进制前缀开头的进制表示
+	function isRadixString(s: string): boolean {
+		return /^0[xXbB]/.test(s) || /^0[0-7]/.test(s);
+	}
 
 	const mathContext = {
 		abs: Math.abs,
@@ -162,6 +228,9 @@ f = 1/(2PI*R*C)`;
 		tan: Math.tan,
 		PI: Math.PI,
 		E: Math.E,
+		hex: toHex,
+		bin: toBin,
+		oct: toOct,
 	};
 
 	let source = sampleFormula;
@@ -190,7 +259,16 @@ f = 1/(2PI*R*C)`;
 			}
 		}
 
-		if (typeof value === "string") return JSON.stringify(value);
+		if (typeof value === "string") {
+			// 判断是否为进制字符串（hex/bin/oct 函数返回值），对数字部分每4位分组
+			if (isRadixString(value)) {
+				const prefix = value.startsWith("0x") ? "0x" : value.startsWith("0b") ? "0b" : "0";
+				const digits = value.slice(prefix.length).replace(/\s+/g, "");
+				const groupSize = prefix === "0b" ? 4 : 4;
+				return prefix + formatRadixString(digits, groupSize);
+			}
+			return JSON.stringify(value);
+		}
 		if (typeof value === "undefined") return "undefined";
 
 		try {
@@ -243,6 +321,9 @@ f = 1/(2PI*R*C)`;
 
 			// 忽略行内空格
 			line = line.replace(/\s+/g, "");
+
+			// 展开进制字面量：0xFF, 0b1010, 077 → 十进制数字
+			line = expandRadixLiterals(line);
 
 			// 展开 SI 词缀（传入 scope 以检查已知变量名）
 			const { expanded, hasSi } = expandSiSuffixes(line, scope);
@@ -439,6 +520,9 @@ f = 1/(2PI*R*C)`;
 		
 		const tokens = [
 			{ type: 'comment', regex: /\/\/.*/ },
+			{ type: 'number', regex: /0x[0-9a-fA-F]+/ },
+			{ type: 'number', regex: /0b[01]+/ },
+			{ type: 'number', regex: /0[0-7]+/ },
 			{ type: 'number', regex: /\d*\.?\d+[TGMkmunp]/ },
 			{ type: 'number', regex: /\d*\.?\d+/ },
 			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
@@ -449,15 +533,10 @@ f = 1/(2PI*R*C)`;
 		let result = "";
 		let lastIdx = 0;
 		
-		// 简单的手动扫描或复杂的正则拆分
-		// 为了支持匹配括号高亮，我们需要知道每个 token 的原始位置
-		// 这里用一个简单的循环来构建 HTML
-		
 		let i = 0;
 		while (i < text.length) {
 			let matched = false;
 			
-			// 检查是否是匹配的括号
 			if (i === currentIdx || i === matchedBracketIndex) {
 				const char = text[i];
 				if ("()[]{}".includes(char)) {
@@ -490,12 +569,11 @@ f = 1/(2PI*R*C)`;
 			}
 		}
 
-		return result + "\n"; // 补一个换行确保对齐
+		return result + "\n";
 	}
 </script>
 
-<div class="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-4 px-4 py-4 md:px-6 lg:py-6">
-	<!-- 紧凑的 Header -->
+<div class="mx-auto flex h-dvh w-full max-w-7xl flex-col gap-4 overflow-hidden px-4 py-4 md:px-6 lg:py-6">
 	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
 		<div class="flex items-center gap-3">
 			<div class="flex h-10 w-10 items-center justify-center rounded-xl shadow-lg shadow-primary/20">
@@ -519,8 +597,8 @@ f = 1/(2PI*R*C)`;
 		</div>
 	</header>
 
-	<section class="grid flex-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
-		<div class="card flex flex-col border border-base-300 bg-base-100 shadow-sm overflow-hidden">
+	<section class="grid min-h-0 flex-1 gap-6 overflow-hidden xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
+		<div class="card flex min-h-0 flex-col border border-base-300 bg-base-100 shadow-sm overflow-hidden">
 			<!-- 编辑器标题栏 -->
 			<div class="flex items-center justify-between border-b border-base-300 bg-base-50/50 px-5 py-3">
 				<div class="flex items-center gap-2">
@@ -540,7 +618,7 @@ f = 1/(2PI*R*C)`;
 				</div>
 			</div>
 
-			<div class="grid flex-1 grid-cols-[48px_minmax(0,1fr)_minmax(160px,280px)] font-mono text-[13px] leading-6">
+			<div class="grid min-h-0 flex-1 grid-cols-[48px_minmax(0,1fr)_minmax(160px,280px)] grid-rows-[1fr] overflow-hidden font-mono text-[13px] leading-6">
 				<!-- 行号 -->
 				<div bind:this={lineNumbers} class="select-none overflow-hidden border-r border-base-300 bg-base-200/40 px-2 py-4 text-right text-base-content/30">
 					{#each lines as _, index}
@@ -550,16 +628,10 @@ f = 1/(2PI*R*C)`;
 
 				<!-- 核心编辑器容器 -->
 				<div class="relative overflow-hidden bg-base-100">
-					<!-- 背景高亮层 -->
-					<div 
-						bind:this={backdrop}
-						class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre px-4 py-4 text-transparent transition-none"
-						aria-hidden="true"
-					>
+					<div bind:this={backdrop} class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre px-4 py-4 text-transparent transition-none" aria-hidden="true">
 						{@html highlight(source, cursorPosition)}
 					</div>
 
-					<!-- 输入层 -->
 					<textarea
 						bind:this={textarea}
 						bind:value={source}
@@ -573,16 +645,9 @@ f = 1/(2PI*R*C)`;
 					></textarea>
 				</div>
 
-				<!-- 结果面板 -->
 				<div bind:this={resultsPanel} class="overflow-hidden border-l border-base-300 bg-base-200/20 px-4 py-4">
 					{#each lineResults as item}
-						<div 
-							class:text-error={item.type === 'error'} 
-							class:text-success={item.type === 'success'} 
-							class:font-bold={item.varName}
-							class="h-6 overflow-hidden text-ellipsis whitespace-nowrap opacity-90 transition-opacity hover:opacity-100"
-							title={item.text}
-						>
+						<div class:text-error={item.type === 'error'} class:text-success={item.type === 'success'} class:font-bold={item.varName} class="h-6 overflow-hidden text-ellipsis whitespace-nowrap opacity-90 hover:opacity-100" title={item.text}>
 							{item.text || ' '}
 						</div>
 					{/each}
@@ -590,7 +655,6 @@ f = 1/(2PI*R*C)`;
 			</div>
 		</div>
 
-		<!-- 右侧面板 -->
 		<div class="flex flex-col gap-6">
 			<div class="card border border-base-300 bg-base-100 shadow-sm">
 				<div class="card-body p-5">
@@ -605,7 +669,7 @@ f = 1/(2PI*R*C)`;
 							<div class="flex flex-wrap gap-2">
 								{#each Object.entries(variableSnapshot) as [name, value]}
 									<button
-										class="btn btn-ghost btn-xs h-auto min-h-0 gap-1 rounded-lg border border-base-300 px-2.5 py-1.5 text-xs font-mono normal-case hover:border-primary/40 hover:bg-primary/5 transition-colors"
+										class="btn btn-ghost btn-xs h-auto min-h-0 gap-1 rounded-lg border border-base-300 px-2.5 py-1.5 text-xs font-mono normal-case hover:border-primary/40 hover:bg-primary/5"
 										type="button"
 										on:click={() => copyValue(formatValue(value))}
 										title="点击复制值"
@@ -626,12 +690,7 @@ f = 1/(2PI*R*C)`;
 
 <!-- 帮助弹窗 Modal -->
 {#if helpDialogOpen}
-	<div
-		class="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-		on:click={handleDialogOverlayClick}
-		role="dialog"
-		aria-modal="true"
-	>
+	<div class="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" on:click={handleDialogOverlayClick} role="dialog" aria-modal="true">
 		<div class="mx-4 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-base-300 bg-base-100 shadow-2xl">
 			<div class="sticky top-0 z-10 flex items-center justify-between border-b border-base-300 bg-base-100 px-6 py-4">
 				<div class="flex items-center gap-2">
@@ -644,7 +703,6 @@ f = 1/(2PI*R*C)`;
 			</div>
 
 			<div class="space-y-6 px-6 py-5">
-				<!-- 基本用法 -->
 				<div>
 					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">基本用法</h3>
 					<ul class="space-y-2 text-sm leading-relaxed text-base-content/70">
@@ -676,10 +734,13 @@ f = 1/(2PI*R*C)`;
 							<span class="text-primary font-bold">7.</span>
 							<span>隐式乘法：<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">2PI</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">10kOhm</code> 自动展开。</span>
 						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">8.</span>
+							<span>进制：支持 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">0xFF</code>（十六进制）<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">0b1010</code>（二进制）<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">077</code>（八进制）。使用 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">hex()</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">bin()</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">oct()</code> 转换结果进制。</span>
+						</li>
 					</ul>
 				</div>
 
-				<!-- 常用函数 -->
 				<div>
 					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">常用函数</h3>
 					<div class="grid grid-cols-2 gap-2">
@@ -692,7 +753,6 @@ f = 1/(2PI*R*C)`;
 					</div>
 				</div>
 
-				<!-- 常量 -->
 				<div>
 					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">常量</h3>
 					<div class="flex gap-3">
@@ -726,14 +786,12 @@ f = 1/(2PI*R*C)`;
 {/if}
 
 <style>
-	/* 语法高亮颜色 */
 	:global(.token-comment) { color: #94a3b8; font-style: italic; }
 	:global(.token-number) { color: #f59e0b; }
 	:global(.token-operator) { color: #ec4899; font-weight: bold; }
 	:global(.token-bracket) { color: #6366f1; }
 	:global(.token-variable) { color: #0ea5e9; }
 
-	/* 隐藏滚动条但保持滚动功能 (针对 lineNumbers 和 resultsPanel) */
 	div::-webkit-scrollbar {
 		display: none;
 	}
@@ -747,7 +805,6 @@ f = 1/(2PI*R*C)`;
 		word-wrap: normal;
 	}
 
-	/* Toast 动画 */
 	.toast {
 		animation: toast-in 0.3s ease-out;
 	}
