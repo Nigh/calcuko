@@ -40,10 +40,15 @@ calcuko/
 │   └── pwa-512x512.png       # PWA 图标 512
 └── src/
     ├── components/
-    │   ├── FormulaCalculator.svelte  # ⭐ 核心组件 - 公式编辑器与求值引擎
+    │   ├── FormulaCalculator.svelte  # ⭐ 核心组件 - UI + 状态管理（~260 行）
     │   └── ReloadPrompt.svelte       # PWA 更新提示 Toast
     ├── layouts/
     │   └── Layout.astro              # 全局 HTML 布局（含 ClientRouter、PWA manifest）
+    ├── lib/
+    │   ├── types.ts                  # 共享类型定义（LineResult）
+    │   ├── constants.ts              # 常量（SI_MAP、示例公式、帮助弹窗数据）
+    │   ├── evaluator.ts              # ⭐ 求值引擎（进制/SI/emoji 处理、evaluateSource 等）
+    │   └── highlight.ts              # 语法高亮 tokenizer
     ├── pages/
     │   └── index.astro               # 唯一页面，加载 FormulaCalculator
     └── styles/
@@ -60,19 +65,27 @@ calcuko/
 - **Header 图标**：使用 `<img src="/favicon.svg">` 引用 `public/favicon.svg` 作为品牌 logo，替代之前的内联计算器 SVG
 - **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
 - **实现方式**：`new Function("scope", "with (scope) { return (expr); }")` 执行表达式
-- **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等）
+- **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等），以及进制转换函数 `hex()` `bin()` `oct()`
 - **变量作用域**：逐行累积 scope 对象，后续行可引用前面定义的变量
+- **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
 - **注释**：`//` 开头的行和空行被跳过，行内 `//` 后内容作为注释忽略
+- **进制字面量**：`expandRadixLiterals()` 在 SI 词缀展开前处理 `0x`（十六进制）、`0b`（二进制）、`0`（八进制）前缀，转换为十进制字符串
+- **进制转换函数**：`hex(n)` / `bin(n)` / `oct(n)` 将数值转换为带前缀的进制字符串（使用 `>>> 0` 处理负数），数字部分从低位起每 4 位添加空格分组
+- **进制结果展示**：`formatValue()` 检测 `isRadixString()` 判断字符串是否为进制表示，对数字部分调用 `formatRadixString()` 进行空格分组；分组结果也显示在变量快照中
 - **SI 词缀支持**：数字尾部支持 SI 单位词缀 T/G/M/k/m/u/n/p，求值前自动展开为科学计数法；仅当输入行使用了 SI 词缀时，结果才以 SI 词缀格式显示
 - **隐式乘法**：数字后直接接变量名（如 `2PI` `3R1`）自动展开为乘法表达式；`10kOhm` 优先匹配完整变量 `kOhm`，不存在时降级为 SI 词缀 `k` + 变量 `Ohm`
 - **结果格式化**：小数限制 4 位，NaN/Infinity 特殊处理，带 SI 词缀的结果自动以词缀格式化
-- **语法高亮**：自定义 tokenizer，支持注释、数值（含 SI 词缀）、运算符、括号、变量六种 token 类型
+- **语法高亮**：自定义 tokenizer（`src/lib/highlight.ts`），支持注释、数值（含 SI 词缀、进制数值 0x/0b/0 前缀）、运算符、括号、变量六种 token 类型
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
+- **帮助弹窗**：Header 中的「帮助」按钮弹出 DaisyUI modal，展示 8 条基本用法说明（含进制）、19 个函数（含 hex/bin/oct）和 2 个常量的详细列表；内置 `mathFunctions` 和 `mathConstants` 对象定义展示内容
+- **编辑器标题栏操作**：标题栏右侧放置「示例」和「清除」按钮——示例载入内置公式，清除清空编辑器及 localStorage
+- **变量快照复制**：变量快照以 button 形式展示 `name = value`，点击通过 `navigator.clipboard.writeText()` 复制值，并显示 2 秒自动消失的「已复制」Toast
 
 ### 数据持久化
 - 使用 `localStorage`（key: `calcuko-formulas`）保存用户输入
 - 页面加载时从 localStorage 恢复，无数据则使用内置示例公式
+- 清除按钮会清空 localStorage 中的公式数据
 
 ### PWA 配置
 - `registerType: 'autoUpdate'`，自动更新 Service Worker
@@ -108,7 +121,7 @@ npm run preview      # 预览构建结果
 
 1. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
 2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
-3. **单文件组件**：所有核心逻辑集中在 `FormulaCalculator.svelte`（`BASE_URL` 约 570 行），无拆分
+3. **模块拆分**：核心逻辑已拆分为 `src/lib/` 下的 `types.ts`（类型）、`constants.ts`（常量）、`evaluator.ts`（求值引擎）、`highlight.ts`（语法高亮），`FormulaCalculator.svelte` 仅负责 UI 和状态管理（约 260 行）
 4. **无测试**：项目无测试文件和测试框架配置
 5. **无 CI/CD 配置文件**：未发现 GitHub Actions 等 CI 配置
 
