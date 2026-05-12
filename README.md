@@ -55,9 +55,6 @@ area = width * height
 diagonal = sqrt(pow(width, 2) + pow(height, 2))
 ```
 
-<!-- 占位符：高亮与括号匹配细节截图 -->
-<!-- ![语法高亮细节](./docs/highlight.png) -->
-
 ## 📚 内置函数参考
 
 Calcuko 内置了标准 Math 对象的所有常量和函数：
