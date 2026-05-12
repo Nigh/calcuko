@@ -1,237 +1,11 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { evaluateSource, formatValue } from "../lib/evaluator";
+	import { highlight } from "../lib/highlight";
+	import { storageKey, sampleFormula, mathFunctions, mathConstants } from "../lib/constants";
+	import type { LineResult } from "../lib/types";
+
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
-	const sampleFormula = `Vo = 13
-Vref = 2.5
-R1 = 11
-R2 = 2.87
-R3 = 10
-
-// Unicode 变量名
-半径 = 5
-π = PI
-面积 = π * 半径**2
-
-// Emoji 变量名
-😊 = 10
-🔥 = 42
-快乐 = 😊 * 🔥
-
-// 隐式乘法：数字后直接接变量名
-Omega = 2PI*R1 + 3R2
-
-// SI 词缀示例
-R = 10k
-C = 100n
-f = 1/(2PI*R*C)
-
-// 进制字面量：0x十六进制 0b二进制 0八进制
-hexVal = 0xFF
-binVal = 0b1101
-octVal = 0777
-sum = hexVal + binVal + octVal
-
-// 进制转换函数：hex() bin() oct()
-dec = 255
-h = hex(dec)
-b = bin(dec)
-o = oct(dec)`;
-
-	const storageKey = "calcuko-formulas";
-
-	type LineResult = {
-		type: "empty" | "success" | "error";
-		text: string;
-		varName?: string;
-	};
-
-	const SI_MAP: Record<string, number> = {
-		T: 1e12,
-		G: 1e9,
-		M: 1e6,
-		k: 1e3,
-		m: 1e-3,
-		u: 1e-6,
-		n: 1e-9,
-		p: 1e-12,
-	};
-
-	// 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
-	function expandRadixLiterals(expr: string): string {
-		// 先替换 0x（十六进制）
-		expr = expr.replace(/0x([0-9a-fA-F]+)/g, (_m, digits) => String(parseInt(digits, 16)));
-		// 再替换 0b（二进制）
-		expr = expr.replace(/0b([01]+)/g, (_m, digits) => String(parseInt(digits, 2)));
-		// 最后替换 0（八进制），谨慎匹配：前导0且后跟至少一位[0-7]，但排除单独0和0紧跟小数点
-		expr = expr.replace(/(?<!\d)0([0-7]+)/g, (_m, digits) => String(parseInt(digits, 8)));
-		return expr;
-	}
-
-	// 若标识符含 emoji，用 scope["name"] 包装（JS 解析器不支持 emoji 标识符）
-	function wrapIdent(ident: string): string {
-		if (/\p{Extended_Pictographic}/u.test(ident)) {
-			const escaped = ident.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-			return `scope["${escaped}"]`;
-		}
-		return ident;
-	}
-
-	function expandSiSuffixes(expr: string, scope: Record<string, unknown>): { expanded: string; hasSi: boolean } {
-		let hasSi = false;
-		// 按词缀长度降序排列，长词缀优先匹配
-		const siEntries = Object.entries(SI_MAP).sort((a, b) => b[0].length - a[0].length);
-
-		const expanded = expr.replace(
-			/(\d*\.?\d+)((?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*)/gu,
-			(_match, num: string, ident: string) => {
-				// Stage 1: 完整标识符为已知变量/常量 → 隐式乘法
-				if (ident in scope) {
-					return `(${num}*${wrapIdent(ident)})`;
-				}
-
-				// Stage 2: 检查是否为 SI 词缀(+后续变量)
-				for (const [siSuffix, factor] of siEntries) {
-					if (ident.startsWith(siSuffix)) {
-						const rest = ident.slice(siSuffix.length);
-						if (rest === '') {
-							// 纯 SI 词缀: 10k → (10*1000)
-							hasSi = true;
-							return `(${num}*${factor})`;
-						} else if (/^(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*$/u.test(rest)) {
-							// SI 词缀 + 变量: 10kOhm → (10*0.001*Ohm)
-							hasSi = true;
-							return `(${num}*${factor}*${wrapIdent(rest)})`;
-						}
-					}
-				}
-
-				// Stage 3: 兜底隐式乘法（eval 时若 ident 不存在会报 ReferenceError）
-				return `(${num}*${wrapIdent(ident)})`;
-			},
-		);
-		return { expanded, hasSi };
-	}
-
-	function formatValueWithSi(value: number): string {
-		if (value === 0) return "0";
-		const absValue = Math.abs(value);
-		const suffixes: [number, string][] = [
-			[1e12, "T"],
-			[1e9, "G"],
-			[1e6, "M"],
-			[1e3, "k"],
-			[1e-3, "m"],
-			[1e-6, "u"],
-			[1e-9, "n"],
-			[1e-12, "p"],
-		];
-
-		for (const [threshold, suffix] of suffixes) {
-			const normalized = absValue / threshold;
-			if (normalized >= 1 && normalized < 1000) {
-				const roundedStr = (value / threshold).toFixed(4);
-				const rounded = Number(roundedStr);
-				// 回环校验：如果取整后的值无法还原原值，说明精度丢失，回退到标准格式
-				if (Math.abs(rounded * threshold - value) > 1e-9 * Math.max(1, value)) {
-					return formatValue(value);
-				}
-				return `${Number(roundedStr)}${suffix}`;
-			}
-		}
-
-		return formatValue(value);
-	}
-
-	const mathFunctions: Record<string, string> = {
-		abs: "Math.abs(x) — 绝对值",
-		acos: "Math.acos(x) — 反余弦",
-		asin: "Math.asin(x) — 反正弦",
-		atan: "Math.atan(x) — 反正切",
-		ceil: "Math.ceil(x) — 向上取整",
-		cos: "Math.cos(x) — 余弦",
-		exp: "Math.exp(x) — e^x 指数",
-		floor: "Math.floor(x) — 向下取整",
-		log: "Math.log(x) — 自然对数 ln(x)",
-		max: "Math.max(a, b, ...) — 最大值",
-		min: "Math.min(a, b, ...) — 最小值",
-		pow: "Math.pow(x, y) — x 的 y 次幂",
-		round: "Math.round(x) — 四舍五入",
-		sin: "Math.sin(x) — 正弦",
-		sqrt: "Math.sqrt(x) — 平方根",
-		tan: "Math.tan(x) — 正切",
-		hex: "hex(n) — 转十六进制 (0xFFFF)",
-		bin: "bin(n) — 转二进制 (0b1100 1010)",
-		oct: "oct(n) — 转八进制 (0777)",
-	};
-
-	const mathConstants: Record<string, string> = {
-		PI: "π (圆周率 ≈ 3.14159)",
-		E: "自然对数的底数 (≈ 2.71828)",
-	};
-
-	// 进制转换函数
-	function toHex(n: number): string {
-		if (!Number.isFinite(n)) return String(n);
-		const int = Math.round(n);
-		const hexStr = (int >>> 0).toString(16).toUpperCase();
-		return "0x" + formatRadixString(hexStr, 4);
-	}
-
-	function toBin(n: number): string {
-		if (!Number.isFinite(n)) return String(n);
-		const int = Math.round(n);
-		// 使用无符号右移处理负数
-		const binStr = (int >>> 0).toString(2);
-		return "0b" + formatRadixString(binStr, 4);
-	}
-
-	function toOct(n: number): string {
-		if (!Number.isFinite(n)) return String(n);
-		const int = Math.round(n);
-		const octStr = (int >>> 0).toString(8);
-		return "0" + formatRadixString(octStr, 4);
-	}
-
-	// 从低位起每 groupSize 位添加空格
-	function formatRadixString(str: string, groupSize: number): string {
-		// 补齐到 groupSize 的整数倍，从低位分组
-		const padLen = str.length % groupSize;
-		const padded = padLen !== 0 ? str.padStart(str.length + (groupSize - padLen), "0") : str;
-		const groups: string[] = [];
-		for (let i = 0; i < padded.length; i += groupSize) {
-			groups.push(padded.slice(i, i + groupSize));
-		}
-		return groups.join(" ").replace(/^0+/, "") || "0";
-	}
-
-	// 判断字符串是否是以进制前缀开头的进制表示
-	function isRadixString(s: string): boolean {
-		return /^0[xXbB]/.test(s) || /^0[0-7]/.test(s);
-	}
-
-	const mathContext = {
-		abs: Math.abs,
-		acos: Math.acos,
-		asin: Math.asin,
-		atan: Math.atan,
-		ceil: Math.ceil,
-		cos: Math.cos,
-		exp: Math.exp,
-		floor: Math.floor,
-		log: Math.log,
-		max: Math.max,
-		min: Math.min,
-		pow: Math.pow,
-		round: Math.round,
-		sin: Math.sin,
-		sqrt: Math.sqrt,
-		tan: Math.tan,
-		PI: Math.PI,
-		E: Math.E,
-		hex: toHex,
-		bin: toBin,
-		oct: toOct,
-	};
 
 	let source = sampleFormula;
 	let lineNumbers: HTMLDivElement | undefined;
@@ -248,137 +22,6 @@ o = oct(dec)`;
 	let helpDialogOpen = false;
 	let showCopyToast = false;
 	let copyToastText = "";
-
-	function formatValue(value: unknown) {
-		if (typeof value === "number") {
-			if (Number.isNaN(value)) return "NaN";
-			if (!Number.isFinite(value)) return String(value);
-			// 限制小数位数
-			if (!Number.isInteger(value)) {
-				return Number(value.toFixed(4)).toString();
-			}
-		}
-
-		if (typeof value === "string") {
-			// 判断是否为进制字符串（hex/bin/oct 函数返回值），对数字部分每4位分组
-			if (isRadixString(value)) {
-				const prefix = value.startsWith("0x") ? "0x" : value.startsWith("0b") ? "0b" : "0";
-				const digits = value.slice(prefix.length).replace(/\s+/g, "");
-				const groupSize = prefix === "0b" ? 4 : 4;
-				return prefix + formatRadixString(digits, groupSize);
-			}
-			return JSON.stringify(value);
-		}
-		if (typeof value === "undefined") return "undefined";
-
-		try {
-			return JSON.stringify(value);
-		} catch {
-			return String(value);
-		}
-	}
-
-	// 将表达式中含 emoji 的变量名替换为 scope["name"] 语法
-	function prepareExpression(expr: string): string {
-		return expr.replace(
-			/(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*/gu,
-			(match) => {
-				// 若包含 emoji，用 scope["name"] 替代（JS 解析器不支持 emoji 标识符）
-				if (/\p{Extended_Pictographic}/u.test(match)) {
-					const escaped = match.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-					return `scope["${escaped}"]`;
-				}
-				return match;
-			},
-		);
-	}
-
-	function evaluateSource(input: string) {
-		const normalized = input.replace(/\r\n?/g, "\n");
-		const nextLines = normalized.split("\n");
-		const scope: Record<string, unknown> = { ...mathContext };
-		const nextLineResults: LineResult[] = [];
-		const nextSnapshot: Record<string, unknown> = {};
-
-		for (const rawLine of nextLines) {
-			let line = rawLine.trim();
-
-			if (!line || line.startsWith("//")) {
-				nextLineResults.push({ type: "empty", text: "" });
-				continue;
-			}
-
-			// 分离行内注释
-			const commentIdx = line.indexOf("//");
-			if (commentIdx !== -1) {
-				line = line.slice(0, commentIdx).trim();
-			}
-
-			if (!line) {
-				nextLineResults.push({ type: "empty", text: "" });
-				continue;
-			}
-
-			// 忽略行内空格
-			line = line.replace(/\s+/g, "");
-
-			// 展开进制字面量：0xFF, 0b1010, 077 → 十进制数字
-			line = expandRadixLiterals(line);
-
-			// 展开 SI 词缀（传入 scope 以检查已知变量名）
-			const { expanded, hasSi } = expandSiSuffixes(line, scope);
-
-			const assignmentMatch = expanded.match(/^((?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*)=(.+)$/u);
-
-			let name: string | undefined;
-			let expression: string;
-
-			if (assignmentMatch) {
-				[, name, expression] = assignmentMatch;
-			} else {
-				expression = expanded;
-			}
-
-			// 处理 emoji 变量名，替换为 scope["name"] 语法
-			expression = prepareExpression(expression);
-
-			try {
-				const evaluator = new Function(
-					"scope",
-					`with (scope) { return (${expression}); }`,
-				) as (scope: Record<string, unknown>) => unknown;
-
-				const value = evaluator(scope);
-				if (name) {
-					scope[name] = value;
-					nextSnapshot[name] = value;
-					const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
-					nextLineResults.push({ 
-						type: "success", 
-						text: `${name} = ${displayValue}`,
-						varName: name
-					});
-				} else {
-					const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
-					nextLineResults.push({ 
-						type: "success", 
-						text: displayValue,
-					});
-				}
-			} catch (error) {
-				nextLineResults.push({
-					type: "error",
-					text: error instanceof Error ? error.message : String(error),
-				});
-			}
-		}
-
-		lines = nextLines;
-		lineResults = nextLineResults;
-		variableSnapshot = nextSnapshot;
-	}
-
-	$: evaluateSource(source);
 
 	function handleInput() {
 		localStorage.setItem(storageKey, source);
@@ -410,9 +53,7 @@ o = oct(dec)`;
 		const charBeforeCursor = source[cursorPosition - 1];
 
 		let targetChar = "";
-		let direction = 0;
 		let startPos = -1;
-		let pairChar = "";
 
 		const pairs: Record<string, string> = {
 			"(": ")",
@@ -432,8 +73,8 @@ o = oct(dec)`;
 		}
 
 		if (startPos !== -1) {
-			pairChar = pairs[targetChar];
-			direction = "([{".includes(targetChar) ? 1 : -1;
+			const pairChar = pairs[targetChar];
+			const direction = "([{".includes(targetChar) ? 1 : -1;
 
 			let depth = 0;
 			for (let i = startPos; i >= 0 && i < source.length; i += direction) {
@@ -489,7 +130,6 @@ o = oct(dec)`;
 				showCopyToast = false;
 			}, 2000);
 		}).catch(() => {
-			// fallback
 			copyToastText = "复制失败";
 			showCopyToast = true;
 			setTimeout(() => {
@@ -509,67 +149,11 @@ o = oct(dec)`;
 		});
 	});
 
-	// 语法高亮逻辑
-	function highlight(text: string, currentIdx: number) {
-		// 正则匹配
-		// 1. 注释: // ...
-		// 2. 数值: \d+(\.\d+)?
-		// 3. 运算符: [+*/=-]
-		// 4. 变量/关键字: [A-Za-z_$][\w$]*
-		// 5. 括号: [()\[\]{}]
-		
-		const tokens = [
-			{ type: 'comment', regex: /\/\/.*/ },
-			{ type: 'number', regex: /0x[0-9a-fA-F]+/ },
-			{ type: 'number', regex: /0b[01]+/ },
-			{ type: 'number', regex: /0[0-7]+/ },
-			{ type: 'number', regex: /\d*\.?\d+[TGMkmunp]/ },
-			{ type: 'number', regex: /\d*\.?\d+/ },
-			{ type: 'operator', regex: /[+\-*/=<>!&|^%]+/ },
-			{ type: 'bracket', regex: /[()\[\]{}]/ },
-			{ type: 'variable', regex: /(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*/u },
-		];
-
-		let result = "";
-		let lastIdx = 0;
-		
-		let i = 0;
-		while (i < text.length) {
-			let matched = false;
-			
-			if (i === currentIdx || i === matchedBracketIndex) {
-				const char = text[i];
-				if ("()[]{}".includes(char)) {
-					const escapedChar = char === '&' ? '&' : (char === '<' ? '<' : (char === '>' ? '>' : char));
-					result += `<span class="bg-primary/30 text-primary font-bold underline">${escapedChar}</span>`;
-					i++;
-					matched = true;
-					continue;
-				}
-			}
-
-			for (const token of tokens) {
-				const substr = text.slice(i);
-				const m = substr.match(token.regex);
-				if (m && substr.indexOf(m[0]) === 0) {
-					let content = m[0];
-					let displayContent = content.replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
-					
-					result += `<span class="token-${token.type}">${displayContent}</span>`;
-					i += content.length;
-					matched = true;
-					break;
-				}
-			}
-
-			if (!matched) {
-				const char = text[i];
-				result += char === '&' ? '&' : (char === '<' ? '<' : (char === '>' ? '>' : char));
-				i++;
-			}
-		}
-
-		return result + "\n";
+	$: {
+		const result = evaluateSource(source);
+		lines = result.lines;
+		lineResults = result.lineResults;
+		variableSnapshot = result.variableSnapshot;
 	}
 </script>
 
@@ -611,7 +195,7 @@ o = oct(dec)`;
 						示例
 					</button>
 					<button class="btn btn-ghost btn-xs gap-1 normal-case text-error" type="button" on:click={clearEditor} title="清空编辑器">
-						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c0 1 2 1 2 2v2"/></svg>
 						清除
 					</button>
 					<div class="badge badge-sm badge-outline font-mono opacity-50">UTF-8</div>
@@ -629,7 +213,7 @@ o = oct(dec)`;
 				<!-- 核心编辑器容器 -->
 				<div class="relative overflow-hidden bg-base-100">
 					<div bind:this={backdrop} class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre px-4 py-4 text-transparent transition-none" aria-hidden="true">
-						{@html highlight(source, cursorPosition)}
+						{@html highlight(source, cursorPosition, matchedBracketIndex)}
 					</div>
 
 					<textarea
