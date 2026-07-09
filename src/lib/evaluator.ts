@@ -7,8 +7,8 @@ export function expandRadixLiterals(expr: string): string {
 	expr = expr.replace(/0x([0-9a-fA-F]+)/g, (_m, digits) => String(parseInt(digits, 16)));
 	// 再替换 0b（二进制）
 	expr = expr.replace(/0b([01]+)/g, (_m, digits) => String(parseInt(digits, 2)));
-	// 最后替换 0（八进制），谨慎匹配：前导0且后跟至少一位[0-7]，但排除单独0和0紧跟小数点
-	expr = expr.replace(/(?<!\d)0([0-7]+)/g, (_m, digits) => String(parseInt(digits, 8)));
+	// 最后替换 0（八进制）：前导 0 + [0-7]+，排除小数部分（如 0.00001 中的 00001）
+	expr = expr.replace(/(?<!\d)(?<!\.)0([0-7]+)/g, (_m, digits) => String(parseInt(digits, 8)));
 	return expr;
 }
 
@@ -280,4 +280,14 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 		lineResults: nextLineResults,
 		variableSnapshot: nextSnapshot,
 	};
+}
+
+// ponytail: dev-only self-check; upgrade path → test runner when project adds one
+if (import.meta.env?.DEV) {
+	const chk = (ok: boolean, msg: string) => {
+		if (!ok) throw new Error(`evaluator: ${msg}`);
+	};
+	chk(expandRadixLiterals("0.00001") === "0.00001", "preserve decimal fraction zeros");
+	chk(expandRadixLiterals("0.077") === "0.077", "do not octal-parse fractional part");
+	chk(expandRadixLiterals("077") === "63", "octal literal still works");
 }
