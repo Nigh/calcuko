@@ -8,6 +8,7 @@ import { Rational, decimalFromNumber, formatNumeric, isNumericValue, numericToNu
 import { asNumeric, createRange } from "./language/ranges";
 import { arrayBuiltins } from "./language/arrays";
 import { Matrix, determinant, isMatrix } from "./language/matrix";
+import { bitBuiltins } from "./builtins/bits";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -222,6 +223,7 @@ export const mathContext: RuntimeScope = {
 		if (!isMatrix(value)) throw new Error("det() 需要 Matrix 值");
 		return determinant(value);
 	},
+	...bitBuiltins,
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
