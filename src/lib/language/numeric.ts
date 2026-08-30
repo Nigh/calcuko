@@ -108,3 +108,6 @@ export function formatNumeric(value: NumericValue): string {
 
 export function numericToNumber(value: NumericValue): number { return toDecimal(value).toNumber(); }
 export const decimalFromNumber = (value: number): Decimal => new Decimal(value);
+export function isNumericValue(value: unknown): value is NumericValue {
+	return typeof value === "bigint" || value instanceof Decimal || value instanceof Rational;
+}

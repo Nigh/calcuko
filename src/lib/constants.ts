@@ -31,6 +31,9 @@ export const mathFunctions: Record<string, string> = {
 	hex: "hex(n) — 转十六进制 (0xFFFF)",
 	bin: "bin(n) — 转二进制 (0b1100 1010)",
 	oct: "oct(n) — 转八进制 (0777)",
+	bigint: "bigint(x) — 转任意精度整数",
+	decimal: "decimal(x) — 转 34 位高精度小数",
+	rat: "rat(a, b) — 构造精确分数 a$b",
 };
 
 export const mathConstants: Record<string, string> = {

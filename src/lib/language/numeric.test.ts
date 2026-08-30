@@ -24,4 +24,9 @@ describe("numeric tower", () => {
 		const result = evaluateSource("fraction = 2$4\nhex(18446744073709551615)");
 		expect(result.lineResults.map((line) => line.text)).toEqual(["fraction = 1$2", "0xFFFF FFFF FFFF FFFF"]);
 	});
+
+	it("supports explicit conversions and SI formatting", () => {
+		const result = evaluateSource('bigint("9007199254740993")\ndecimal("0.1") + decimal("0.2")\nR = 10k');
+		expect(result.lineResults.map((line) => line.text)).toEqual(["9007199254740993", "0.3", "R = 10k"]);
+	});
 });
