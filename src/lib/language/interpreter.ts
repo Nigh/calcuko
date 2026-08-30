@@ -2,6 +2,7 @@ import type { Expression, Statement } from "./ast";
 import { LanguageError, type SourceSpan } from "./token";
 import Decimal from "decimal.js";
 import { numericBinary, parseNumeric, toBigIntExact, type NumericValue } from "./numeric";
+import { createRange } from "./ranges";
 
 export type RuntimeValue = NumericValue | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
 // Built-ins are adapted at the registry boundary; permissive parameters allow
@@ -63,6 +64,12 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 			return runtimeError("UNKNOWN_OPERATOR", `未知一元操作符“${expression.operator}”`, expression.span);
 		}
 		case "binary": {
+			if (expression.operator === ".." || expression.operator === "..=") {
+				const left = requireNumeric(evaluateExpression(expression.left, scope), expression.left.span);
+				const right = requireNumeric(evaluateExpression(expression.right, scope), expression.right.span);
+				try { return createRange(left, right, undefined, expression.operator === "..="); }
+				catch (error) { return runtimeError("RANGE_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
+			}
 			if (expression.operator === "&&") return truthy(evaluateExpression(expression.left, scope)) && truthy(evaluateExpression(expression.right, scope));
 			if (expression.operator === "||") return truthy(evaluateExpression(expression.left, scope)) || truthy(evaluateExpression(expression.right, scope));
 			const left = evaluateExpression(expression.left, scope);
