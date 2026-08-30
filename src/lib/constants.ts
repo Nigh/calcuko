@@ -41,6 +41,8 @@ export const mathFunctions: Record<string, string> = {
 	filter: "filter(array, fn) — 过滤数组",
 	sort: "sort(array, fn?) — 排序数组",
 	unique: "unique(array) — 数组去重",
+	matrix: "matrix(rows) — 从二维数组构造矩阵",
+	det: "det(matrix) — 精确计算方阵行列式",
 };
 
 export const mathConstants: Record<string, string> = {

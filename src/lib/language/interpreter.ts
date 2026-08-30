@@ -3,8 +3,9 @@ import { LanguageError, type SourceSpan } from "./token";
 import Decimal from "decimal.js";
 import { numericBinary, parseNumeric, toBigIntExact, type NumericValue } from "./numeric";
 import { createRange } from "./ranges";
+import { Matrix, isMatrix, matrixBinary } from "./matrix";
 
-export type RuntimeValue = NumericValue | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
+export type RuntimeValue = NumericValue | Matrix | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
 // Built-ins are adapted at the registry boundary; permissive parameters allow
 // native Math functions while call results are still validated by the runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,6 +75,12 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 			if (expression.operator === "||") return truthy(evaluateExpression(expression.left, scope)) || truthy(evaluateExpression(expression.right, scope));
 			const left = evaluateExpression(expression.left, scope);
 			const right = evaluateExpression(expression.right, scope);
+			if (isMatrix(left) || isMatrix(right)) {
+				if (!["+", "-", "*", "/"].includes(expression.operator)) return runtimeError("MATRIX_OPERATOR", "该操作符不支持矩阵", expression.span);
+				if (!isMatrix(left) && !isNumeric(left)) return runtimeError("EXPECTED_NUMBER", "矩阵只能与数值或矩阵运算", expression.left.span);
+				if (!isMatrix(right) && !isNumeric(right)) return runtimeError("EXPECTED_NUMBER", "矩阵只能与数值或矩阵运算", expression.right.span);
+				try { return matrixBinary(expression.operator, left, right); } catch (error) { return runtimeError("MATRIX_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
+			}
 			if (Array.isArray(left) || Array.isArray(right)) return vectorBinary(expression.operator, left, right, expression.span);
 			if (expression.operator === "+" && (typeof left === "string" || typeof right === "string")) return String(left) + String(right);
 			if (["==", "!="].includes(expression.operator) && (!isNumeric(left) || !isNumeric(right))) return expression.operator === "==" ? left === right : left !== right;
