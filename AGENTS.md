@@ -73,6 +73,7 @@ calcuko/
 - **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
 - **Tokenizer**：`src/lib/language/tokenizer.ts` 生成带行列与源码区间的 token；字符串内容不会被空格、进制或注释规则改写，只有忽略前导空白后以 `//` 开头的整行才是注释
 - **Parser**：`src/lib/language/parser.ts` 使用 Pratt 算法生成 AST，集中定义操作符优先级和结合性，支持赋值、调用、数组、条件表达式与隐式乘法
+- **用户函数**：支持 `def f(a,b)=expr` 与 `x => expr` / `(a,b) => expr`，函数使用词法闭包、支持递归并严格校验参数数量
 - **错误模型**：tokenizer、parser 与解释器抛出带错误码和源码区间的 `LanguageError`；行结果包含绝对行号、列号及中文错误消息
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
 - **注释**：`//` 开头的行和空行被跳过，行内 `//` 后内容作为注释忽略
