@@ -84,6 +84,7 @@ calcuko/
 - **ECC**：`eccEncode`/`eccDecode` 实现 1–4096 数据位的 Hamming SECDED；解码以 RuntimeRecord 区分 clean、corrected、double-error
 - **颜色类型**：ColorValue 保存原色彩空间通道和规范化 sRGB 预览；支持 RGB、HSL、HSV、BT.601 YUV、Web Hex 与 RGB565 严格转换，结果栏和变量快照显示色块
 - **编码函数**：UTF-8、Base64 与 URL 编解码严格校验字符串和 0–255 BigInt 字节数组，不用替换字符掩盖损坏输入
+- **统计与随机**：总体/样本统计使用 Decimal；`rand`/`randInt` 使用 Web Crypto，随机整数采用拒绝采样并遵循含下界、不含上界
 - **错误模型**：tokenizer、parser 与解释器抛出带错误码和源码区间的 `LanguageError`；行结果包含绝对行号、列号及中文错误消息
 - **结构化结果**：`RuntimeRecord` 保存只读、有序的键值结果，统一 formatter 可递归显示、复制并用于变量快照
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
