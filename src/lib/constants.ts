@@ -69,6 +69,16 @@ export const mathFunctions: Record<string, string> = {
 	base64DecBytes: "base64DecBytes(text) — Base64 解码字节",
 	urlEnc: "urlEnc(text) — URL 百分号编码",
 	urlDec: "urlDec(text) — URL 百分号解码",
+	mean: "mean(values...) — 算术平均值",
+	geoMean: "geoMean(values...) — 几何平均值",
+	harMean: "harMean(values...) — 调和平均值",
+	median: "median(values...) — 中位数",
+	variance: "variance(values...) — 总体方差",
+	std: "std(values...) — 总体标准差",
+	sampleVariance: "sampleVariance(values...) — 样本方差",
+	sampleStd: "sampleStd(values...) — 样本标准差",
+	rand: "rand(min?, max?) — Web Crypto 随机小数",
+	randInt: "randInt(min, max) — 半开区间随机整数",
 };
 
 export const mathConstants: Record<string, string> = {
