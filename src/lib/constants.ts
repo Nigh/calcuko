@@ -61,6 +61,14 @@ export const mathFunctions: Record<string, string> = {
 	toYuv: "toYuv(color) — 转 BT.601 YUV",
 	toRgb565: "toRgb565(color) — 转 RGB565",
 	toHexColor: "toHexColor(color) — 转 #RRGGBB",
+	utf8Enc: "utf8Enc(text) — UTF-8 字节编码",
+	utf8Dec: "utf8Dec(bytes) — 严格 UTF-8 解码",
+	base64Enc: "base64Enc(text) — Base64 编码文本",
+	base64Dec: "base64Dec(text) — Base64 解码文本",
+	base64EncBytes: "base64EncBytes(bytes) — Base64 编码字节",
+	base64DecBytes: "base64DecBytes(text) — Base64 解码字节",
+	urlEnc: "urlEnc(text) — URL 百分号编码",
+	urlDec: "urlDec(text) — URL 百分号解码",
 };
 
 export const mathConstants: Record<string, string> = {
