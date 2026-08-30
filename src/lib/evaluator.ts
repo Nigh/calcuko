@@ -9,6 +9,7 @@ import { asNumeric, createRange } from "./language/ranges";
 import { arrayBuiltins } from "./language/arrays";
 import { Matrix, determinant, isMatrix } from "./language/matrix";
 import { bitBuiltins } from "./builtins/bits";
+import { numberTheoryBuiltins } from "./builtins/numberTheory";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -224,6 +225,7 @@ export const mathContext: RuntimeScope = {
 		return determinant(value);
 	},
 	...bitBuiltins,
+	...numberTheoryBuiltins,
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
