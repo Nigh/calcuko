@@ -6,6 +6,7 @@ import { LanguageError } from "./language/token";
 import Decimal from "decimal.js";
 import { Rational, decimalFromNumber, formatNumeric, isNumericValue, numericToNumber, toBigIntExact, toDecimal, type NumericValue } from "./language/numeric";
 import { asNumeric, createRange } from "./language/ranges";
+import { arrayBuiltins } from "./language/arrays";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -210,6 +211,7 @@ export const mathContext: RuntimeScope = {
 	decimal: convertDecimal,
 	rat: (numerator: unknown, denominator: unknown = 1n) => new Rational(convertBigInt(numerator), convertBigInt(denominator)),
 	range: (start: unknown, stop: unknown, step?: unknown) => createRange(asNumeric(start), asNumeric(stop), step === undefined ? undefined : asNumeric(step)),
+	...arrayBuiltins,
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
