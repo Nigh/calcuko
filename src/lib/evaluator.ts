@@ -1,5 +1,7 @@
 import type { LineResult } from "./types";
 import { SI_MAP } from "./constants";
+import { evaluateStatement, type RuntimeScope } from "./language/interpreter";
+import { parse } from "./language/parser";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -171,7 +173,7 @@ export function prepareExpression(expr: string): string {
 	);
 }
 
-export const mathContext: Record<string, unknown> = {
+export const mathContext: RuntimeScope = {
 	abs: Math.abs,
 	acos: Math.acos,
 	asin: Math.asin,
@@ -198,61 +200,18 @@ export const mathContext: Record<string, unknown> = {
 export function evaluateSource(input: string): { lines: string[]; lineResults: LineResult[]; variableSnapshot: Record<string, unknown> } {
 	const normalized = input.replace(/\r\n?/g, "\n");
 	const nextLines = normalized.split("\n");
-	const scope: Record<string, unknown> = { ...mathContext };
+	const scope: RuntimeScope = { ...mathContext };
 	const nextLineResults: LineResult[] = [];
 	const nextSnapshot: Record<string, unknown> = {};
 
 	for (const rawLine of nextLines) {
-		let line = rawLine.trim();
-
-		if (!line || line.startsWith("//")) {
+		if (!rawLine.trim() || rawLine.trimStart().startsWith("//")) {
 			nextLineResults.push({ type: "empty", text: "" });
 			continue;
 		}
-
-		// 分离行内注释
-		const commentIdx = line.indexOf("//");
-		if (commentIdx !== -1) {
-			line = line.slice(0, commentIdx).trim();
-		}
-
-		if (!line) {
-			nextLineResults.push({ type: "empty", text: "" });
-			continue;
-		}
-
-		// 忽略行内空格
-		line = line.replace(/\s+/g, "");
-
-		// 展开进制字面量：0xFF, 0b1010, 077 → 十进制数字
-		line = expandRadixLiterals(line);
-
-		// 展开 SI 词缀（传入 scope 以检查已知变量名）
-		const { expanded, hasSi } = expandSiSuffixes(line, scope);
-
-		const assignmentMatch = expanded.match(/^((?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*)=(.+)$/u);
-
-		let name: string | undefined;
-		let expression: string;
-
-		if (assignmentMatch) {
-			[, name, expression] = assignmentMatch;
-		} else {
-			expression = expanded;
-		}
-
-		// 处理 emoji 变量名，替换为 scope["name"] 语法
-		expression = prepareExpression(expression);
-
 		try {
-			const evaluator = new Function(
-				"scope",
-				`with (scope) { return (${expression}); }`,
-			) as (scope: Record<string, unknown>) => unknown;
-
-			const value = evaluator(scope);
+			const { value, name, hasSi } = evaluateStatement(parse(rawLine), scope);
 			if (name) {
-				scope[name] = value;
 				nextSnapshot[name] = value;
 				const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
 				nextLineResults.push({ 
@@ -260,7 +219,7 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 					text: `${name} = ${displayValue}`,
 					varName: name
 				});
-			} else {
+			} else if (value !== null) {
 				const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
 				nextLineResults.push({ 
 					type: "success", 

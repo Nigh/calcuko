@@ -66,7 +66,7 @@ calcuko/
 ### FormulaCalculator.svelte 核心逻辑
 - **Header 图标**：使用 `<img src="/favicon.svg">` 引用 `public/favicon.svg` 作为品牌 logo，替代之前的内联计算器 SVG
 - **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
-- **实现方式**：`new Function("scope", "with (scope) { return (expr); }")` 执行表达式
+- **实现方式**：表达式经 tokenizer、Pratt parser 生成 AST，再由受控解释器在显式 scope 中执行，不调用 JavaScript 动态求值
 - **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等），以及进制转换函数 `hex()` `bin()` `oct()`
 - **变量作用域**：逐行累积 scope 对象，后续行可引用前面定义的变量
 - **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
@@ -123,7 +123,7 @@ npm run preview      # 预览构建结果
 
 ## ⚠️ 注意事项
 
-1. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
+1. **表达式边界**：求值器只执行 AST 支持的语法和注册到 scope 的函数，不开放浏览器全局对象
 2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
 3. **模块拆分**：核心逻辑已拆分为 `src/lib/` 下的 `types.ts`（类型）、`constants.ts`（常量）、`evaluator.ts`（求值引擎）、`highlight.ts`（语法高亮），`FormulaCalculator.svelte` 仅负责 UI 和状态管理（约 260 行）
 4. **测试与 CI**：使用 Vitest 编写单元测试；GitHub Actions 对 `dev`/`main` 的提交和 PR 执行测试、类型检查及生产构建
