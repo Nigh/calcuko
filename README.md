@@ -82,6 +82,8 @@ Calcuko 内置了标准 Math 对象的所有常量和函数：
 
 工程函数还包括任意位宽 bit 操作，以及 `eccEncode(width,value)` / `eccDecode(width,encoded)` Hamming SECDED 编解码。
 
+颜色函数支持 RGB（0–255）、HSL/HSV（H 0–360，其余 0–100）、BT.601 YUV、Web Hex 和 RGB565；Color 结果会显示颜色预览。
+
 | 类型 | 示例 |
 | :--- | :--- |
 | **常量** | `PI`, `E` |
