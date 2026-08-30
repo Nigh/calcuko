@@ -47,6 +47,7 @@ calcuko/
     ├── layouts/
     │   └── Layout.astro              # 全局 HTML 布局（含 ClientRouter、PWA manifest）
     ├── lib/
+    │   ├── builtins/                 # 位运算等分组注册的工程函数及测试
     │   ├── language/                 # 表达式语言 tokenizer、AST、Pratt parser、源码位置类型及测试
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 常量（SI_MAP、示例公式、帮助弹窗数据）
@@ -78,6 +79,7 @@ calcuko/
 - **范围**：`start..stop` 为不含终点范围，`start..=stop` 包含终点，`range(start,stop,step?)` 支持显式步长；单次最多生成 10,000 项
 - **数组运算**：算术操作符支持递归逐元素运算、标量广播及同形校验；内置聚合、平均、映射、过滤、排序、反转和去重函数
 - **矩阵**：`matrix(rows)` 将矩形二维数值数组转为独立 Matrix 类型，支持矩阵/标量运算、矩阵乘法与 `det()` 精确行列式
+- **位运算函数**：所有函数接收显式正位宽，支持任意精度掩码、旋转、bit/byte/nibble 翻转、bit count、奇偶校验及 pack/unpack
 - **错误模型**：tokenizer、parser 与解释器抛出带错误码和源码区间的 `LanguageError`；行结果包含绝对行号、列号及中文错误消息
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
 - **注释**：`//` 开头的行和空行被跳过，行内 `//` 后内容作为注释忽略
