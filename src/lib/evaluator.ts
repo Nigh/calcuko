@@ -3,6 +3,8 @@ import { SI_MAP } from "./constants";
 import { evaluateStatement, type RuntimeScope } from "./language/interpreter";
 import { parse } from "./language/parser";
 import { LanguageError } from "./language/token";
+import Decimal from "decimal.js";
+import { Rational, decimalFromNumber, formatNumeric, isNumericValue, numericToNumber, toBigIntExact, toDecimal, type NumericValue } from "./language/numeric";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -108,29 +110,24 @@ export function isRadixString(s: string): boolean {
 }
 
 // 进制转换函数
-export function toHex(n: number): string {
-	if (!Number.isFinite(n)) return String(n);
-	const int = Math.round(n);
-	const hexStr = (int >>> 0).toString(16).toUpperCase();
+export function toHex(n: NumericValue): string {
+	const hexStr = toBigIntExact(n).toString(16).toUpperCase();
 	return "0x" + formatRadixString(hexStr, 4);
 }
 
-export function toBin(n: number): string {
-	if (!Number.isFinite(n)) return String(n);
-	const int = Math.round(n);
-	// 使用无符号右移处理负数
-	const binStr = (int >>> 0).toString(2);
+export function toBin(n: NumericValue): string {
+	const binStr = toBigIntExact(n).toString(2);
 	return "0b" + formatRadixString(binStr, 4);
 }
 
-export function toOct(n: number): string {
-	if (!Number.isFinite(n)) return String(n);
-	const int = Math.round(n);
-	const octStr = (int >>> 0).toString(8);
+export function toOct(n: NumericValue): string {
+	const octStr = toBigIntExact(n).toString(8);
 	return "0" + formatRadixString(octStr, 4);
 }
 
 export function formatValue(value: unknown): string {
+	if (typeof value === "bigint" || value instanceof Decimal || value instanceof Rational) return formatNumeric(value);
+	if (Array.isArray(value)) return `[${value.map(formatValue).join(", ")}]`;
 	if (typeof value === "number") {
 		if (Number.isNaN(value)) return "NaN";
 		if (!Number.isFinite(value)) return String(value);
@@ -174,25 +171,42 @@ export function prepareExpression(expr: string): string {
 	);
 }
 
+const numericArg = (value: unknown): NumericValue => {
+	if (typeof value === "bigint" || value instanceof Decimal || value instanceof Rational) return value;
+	throw new Error("函数参数必须是数值");
+};
+const unaryMath = (fn: (value: number) => number) => (value: unknown) => decimalFromNumber(fn(numericToNumber(numericArg(value))));
+const variadicMath = (fn: (...values: number[]) => number) => (...values: unknown[]) => decimalFromNumber(fn(...values.map((value) => numericToNumber(numericArg(value)))));
+const convertBigInt = (value: unknown) => typeof value === "string" ? BigInt(value) : toBigIntExact(numericArg(value));
+const convertDecimal = (value: unknown) => typeof value === "string" ? new Decimal(value) : toDecimal(numericArg(value));
+
 export const mathContext: RuntimeScope = {
-	abs: Math.abs,
-	acos: Math.acos,
-	asin: Math.asin,
-	atan: Math.atan,
-	ceil: Math.ceil,
-	cos: Math.cos,
-	exp: Math.exp,
-	floor: Math.floor,
-	log: Math.log,
-	max: Math.max,
-	min: Math.min,
-	pow: Math.pow,
-	round: Math.round,
-	sin: Math.sin,
-	sqrt: Math.sqrt,
-	tan: Math.tan,
-	PI: Math.PI,
-	E: Math.E,
+	abs: (value: unknown) => {
+		const numeric = numericArg(value);
+		if (typeof numeric === "bigint") return numeric < 0n ? -numeric : numeric;
+		if (numeric instanceof Rational) return new Rational(numeric.numerator < 0n ? -numeric.numerator : numeric.numerator, numeric.denominator);
+		return numeric.abs();
+	},
+	acos: unaryMath(Math.acos),
+	asin: unaryMath(Math.asin),
+	atan: unaryMath(Math.atan),
+	ceil: (value: unknown) => BigInt(new Decimal(formatNumeric(numericArg(value))).ceil().toFixed(0)),
+	cos: unaryMath(Math.cos),
+	exp: unaryMath(Math.exp),
+	floor: (value: unknown) => BigInt(new Decimal(formatNumeric(numericArg(value))).floor().toFixed(0)),
+	log: unaryMath(Math.log),
+	max: variadicMath(Math.max),
+	min: variadicMath(Math.min),
+	pow: (left: unknown, right: unknown) => new Decimal(formatNumeric(numericArg(left))).pow(new Decimal(formatNumeric(numericArg(right)))),
+	round: (value: unknown) => BigInt(new Decimal(formatNumeric(numericArg(value))).toDecimalPlaces(0, Decimal.ROUND_HALF_EVEN).toFixed(0)),
+	sin: unaryMath(Math.sin),
+	sqrt: (value: unknown) => new Decimal(formatNumeric(numericArg(value))).sqrt(),
+	tan: unaryMath(Math.tan),
+	PI: new Decimal("3.141592653589793238462643383279503"),
+	E: new Decimal("2.718281828459045235360287471352662"),
+	bigint: convertBigInt,
+	decimal: convertDecimal,
+	rat: (numerator: unknown, denominator: unknown = 1n) => new Rational(convertBigInt(numerator), convertBigInt(denominator)),
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
@@ -214,14 +228,14 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 			const { value, name, hasSi } = evaluateStatement(parse(rawLine), scope);
 			if (name) {
 				nextSnapshot[name] = value;
-				const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
+				const displayValue = hasSi && isNumericValue(value) ? formatNumericWithSi(value) : formatValue(value);
 				nextLineResults.push({ 
 					type: "success", 
 					text: `${name} = ${displayValue}`,
 					varName: name
 				});
 			} else if (value !== null) {
-				const displayValue = hasSi && typeof value === "number" ? formatValueWithSi(value) : formatValue(value);
+				const displayValue = hasSi && isNumericValue(value) ? formatNumericWithSi(value) : formatValue(value);
 				nextLineResults.push({ 
 					type: "success", 
 					text: displayValue,
@@ -250,6 +264,17 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 		lineResults: nextLineResults,
 		variableSnapshot: nextSnapshot,
 	};
+}
+
+function formatNumericWithSi(value: NumericValue): string {
+	const decimal = toDecimal(value);
+	if (decimal.isZero()) return "0";
+	const suffixes: Array<[string, string]> = [["1e12", "T"], ["1e9", "G"], ["1e6", "M"], ["1e3", "k"], ["1e-3", "m"], ["1e-6", "u"], ["1e-9", "n"], ["1e-12", "p"]];
+	for (const [factor, suffix] of suffixes) {
+		const normalized = decimal.abs().div(factor);
+		if (normalized.gte(1) && normalized.lt(1000)) return `${decimal.div(factor).toSignificantDigits(34)}${suffix}`;
+	}
+	return formatNumeric(value);
 }
 
 // ponytail: dev-only self-check; upgrade path → test runner when project adds one

@@ -20,6 +20,7 @@
 | UI 组件 | Svelte | ^5.55.2 |
 | 样式 | Tailwind CSS v4 + DaisyUI v5 | @tailwindcss/vite ^4.2.2, daisyui ^5.5.19 |
 | 语言 | TypeScript | ^5.9.3 |
+| 高精度数值 | decimal.js | ^10.6.0 |
 | PWA | @vite-pwa/astro + workbox-window | ^1.2.0 / ^7.4.0 |
 
 ## 目录结构
@@ -80,7 +81,8 @@ calcuko/
 - **进制结果展示**：`formatValue()` 检测 `isRadixString()` 判断字符串是否为进制表示，对数字部分调用 `formatRadixString()` 进行空格分组；分组结果也显示在变量快照中
 - **SI 词缀支持**：数字尾部支持 SI 单位词缀 T/G/M/k/m/u/n/p，求值前自动展开为科学计数法；仅当输入行使用了 SI 词缀时，结果才以 SI 词缀格式显示
 - **隐式乘法**：数字后直接接变量名（如 `2PI` `3R1`）自动展开为乘法表达式；`10kOhm` 优先匹配完整变量 `kOhm`，不存在时降级为 SI 词缀 `k` + 变量 `Ohm`
-- **结果格式化**：小数限制 4 位，NaN/Infinity 特殊处理，带 SI 词缀的结果自动以词缀格式化
+- **结果格式化**：BigInt、Decimal、Rational 与数组通过统一 formatter 显示；含 SI 词缀的表达式以合适的 SI 词缀输出
+- **数值模型**：整数为任意精度 BigInt，小数使用 34 位有效数字且 half-even 舍入的 Decimal，`a$b` 为自动约分的精确 Rational；混合运算按 BigInt → Rational → Decimal 提升
 - **语法高亮**：`src/lib/highlight.ts` 直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符、括号和变量，避免高亮与求值语法漂移
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
 - **帮助弹窗**：Header 中的「帮助」按钮弹出 DaisyUI modal，展示 8 条基本用法说明（含进制）、19 个函数（含 hex/bin/oct）和 2 个常量的详细列表；内置 `mathFunctions` 和 `mathConstants` 对象定义展示内容

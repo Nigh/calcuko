@@ -1,31 +1,18 @@
 import type { Expression, Statement } from "./ast";
 import { LanguageError, type SourceSpan } from "./token";
+import Decimal from "decimal.js";
+import { numericBinary, parseNumeric, toBigIntExact, type NumericValue } from "./numeric";
 
-export type RuntimeValue = number | string | boolean | RuntimeValue[] | BuiltinFunction | null;
+export type RuntimeValue = NumericValue | string | boolean | RuntimeValue[] | BuiltinFunction | null;
 // Built-ins are adapted at the registry boundary; permissive parameters allow
 // native Math functions while call results are still validated by the runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type BuiltinFunction = (...args: any[]) => RuntimeValue;
 export type RuntimeScope = Record<string, RuntimeValue>;
 
-const SI_FACTORS: Record<string, number> = { T: 1e12, G: 1e9, M: 1e6, k: 1e3, m: 1e-3, u: 1e-6, n: 1e-9, p: 1e-12 };
-
 const runtimeError = (code: string, message: string, span: SourceSpan): never => {
 	throw new LanguageError(code, message, span);
 };
-
-export function parseLegacyNumber(raw: string): number {
-	const compact = raw.replaceAll("_", "");
-	const suffix = compact.at(-1) ?? "";
-	const factor = SI_FACTORS[suffix];
-	const numeric = factor ? compact.slice(0, -1) : compact;
-	let value: number;
-	if (/^0x/i.test(numeric)) value = Number.parseInt(numeric.slice(2), 16);
-	else if (/^0b/i.test(numeric)) value = Number.parseInt(numeric.slice(2), 2);
-	else if (/^0[0-7]+$/.test(numeric)) value = Number.parseInt(numeric.slice(1), 8);
-	else value = Number(numeric);
-	return value * (factor ?? 1);
-}
 
 export function evaluateStatement(statement: Statement, scope: RuntimeScope): { value: RuntimeValue; name?: string; hasSi: boolean } {
 	if (statement.kind === "empty") return { value: null, hasSi: false };
@@ -39,7 +26,7 @@ export function evaluateStatement(statement: Statement, scope: RuntimeScope): { 
 
 export function evaluateExpression(expression: Expression, scope: RuntimeScope): RuntimeValue {
 	switch (expression.kind) {
-		case "number": return parseLegacyNumber(expression.raw);
+		case "number": return parseNumeric(expression.raw);
 		case "string": return expression.value;
 		case "identifier":
 			if (!(expression.name in scope)) return runtimeError("UNKNOWN_IDENTIFIER", `未定义标识符“${expression.name}”`, expression.span);
@@ -48,10 +35,10 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 		case "unary": {
 			const operand = evaluateExpression(expression.operand, scope);
 			if (expression.operator === "!") return !truthy(operand);
-			const number = requireNumber(operand, expression.span);
+			const number = requireNumeric(operand, expression.span);
 			if (expression.operator === "+") return number;
-			if (expression.operator === "-") return -number;
-			if (expression.operator === "~") return ~number;
+			if (expression.operator === "-") return numericBinary("-", 0n, number) as NumericValue;
+			if (expression.operator === "~") return ~toBigIntExact(number);
 			return runtimeError("UNKNOWN_OPERATOR", `未知一元操作符“${expression.operator}”`, expression.span);
 		}
 		case "binary": {
@@ -60,16 +47,19 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 			const left = evaluateExpression(expression.left, scope);
 			const right = evaluateExpression(expression.right, scope);
 			if (expression.operator === "+" && (typeof left === "string" || typeof right === "string")) return String(left) + String(right);
-			if (["==", "!="].includes(expression.operator)) return expression.operator === "==" ? left === right : left !== right;
-			const a = requireNumber(left, expression.left.span);
-			const b = requireNumber(right, expression.right.span);
+			if (["==", "!="].includes(expression.operator) && (!isNumeric(left) || !isNumeric(right))) return expression.operator === "==" ? left === right : left !== right;
+			const a = requireNumeric(left, expression.left.span);
+			const b = requireNumeric(right, expression.right.span);
 			switch (expression.operator) {
-				case "+": return a + b; case "-": return a - b; case "*": return a * b;
-				case "/": if (b === 0) return runtimeError("DIVISION_BY_ZERO", "不能除以零", expression.right.span); return a / b;
-				case "//": if (b === 0) return runtimeError("DIVISION_BY_ZERO", "不能除以零", expression.right.span); return Math.trunc(a / b);
-				case "%": return a % b; case "**": return a ** b;
-				case ">": return a > b; case ">=": return a >= b; case "<": return a < b; case "<=": return a <= b;
-				case "&": return a & b; case "|": return a | b; case "^": return a ^ b; case "<<": return a << b; case ">>": return a >> b;
+				case "+": case "-": case "*": case "/": case "//": case "%": case "**": case "$":
+				case ">": case ">=": case "<": case "<=": case "==": case "!=":
+					try { return numericBinary(expression.operator, a, b); }
+					catch (error) { return runtimeError("NUMERIC_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
+				case "&": return toBigIntExact(a) & toBigIntExact(b);
+				case "|": return toBigIntExact(a) | toBigIntExact(b);
+				case "^": return toBigIntExact(a) ^ toBigIntExact(b);
+				case "<<": return toBigIntExact(a) << toBigIntExact(b);
+				case ">>": return toBigIntExact(a) >> toBigIntExact(b);
 				default: return runtimeError("UNKNOWN_OPERATOR", `未知操作符“${expression.operator}”`, expression.span);
 			}
 		}
@@ -84,10 +74,11 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 	}
 }
 
-function requireNumber(value: RuntimeValue, span: SourceSpan): number {
-	if (typeof value !== "number") return runtimeError("EXPECTED_NUMBER", "此操作需要数值", span);
+function requireNumeric(value: RuntimeValue, span: SourceSpan): NumericValue {
+	if (!isNumeric(value)) return runtimeError("EXPECTED_NUMBER", "此操作需要数值", span);
 	return value;
 }
+function isNumeric(value: RuntimeValue): value is NumericValue { return typeof value === "bigint" || value instanceof Decimal || (typeof value === "object" && value !== null && "numerator" in value && "denominator" in value); }
 function truthy(value: RuntimeValue): boolean { return Boolean(value); }
 function expressionHasSi(expression: Expression): boolean {
 	if (expression.kind === "number") return /[TGMkmunp]$/.test(expression.raw);
