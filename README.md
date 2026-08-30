@@ -86,6 +86,8 @@ Calcuko 内置了标准 Math 对象的所有常量和函数：
 
 统计函数提供总体/样本方差和标准差、三类平均值与中位数；`rand`、`randInt` 使用 Web Crypto。
 
+`solve(f)`、`solve(f, initial)` 或 `solve(f, min, max)` 使用带预算的 Newton-Raphson 数值求根。
+
 | 类型 | 示例 |
 | :--- | :--- |
 | **常量** | `PI`, `E` |
