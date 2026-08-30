@@ -74,6 +74,7 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 			if (expression.operator === "||") return truthy(evaluateExpression(expression.left, scope)) || truthy(evaluateExpression(expression.right, scope));
 			const left = evaluateExpression(expression.left, scope);
 			const right = evaluateExpression(expression.right, scope);
+			if (Array.isArray(left) || Array.isArray(right)) return vectorBinary(expression.operator, left, right, expression.span);
 			if (expression.operator === "+" && (typeof left === "string" || typeof right === "string")) return String(left) + String(right);
 			if (["==", "!="].includes(expression.operator) && (!isNumeric(left) || !isNumeric(right))) return expression.operator === "==" ? left === right : left !== right;
 			const a = requireNumeric(left, expression.left.span);
@@ -107,6 +108,25 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 			catch (error) { return runtimeError("FUNCTION_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
 		}
 	}
+}
+
+function vectorBinary(operator: string, left: RuntimeValue, right: RuntimeValue, span: SourceSpan): RuntimeValue {
+	if (Array.isArray(left) && Array.isArray(right)) {
+		if (left.length !== right.length) return runtimeError("ARRAY_SHAPE", "数组形状不一致", span);
+		return left.map((value, index) => vectorBinary(operator, value, right[index], span));
+	}
+	if (Array.isArray(left)) return left.map((value) => vectorBinary(operator, value, right, span));
+	if (Array.isArray(right)) return right.map((value) => vectorBinary(operator, left, value, span));
+	const a = requireNumeric(left, span); const b = requireNumeric(right, span);
+	try { return numericBinary(operator, a, b); }
+	catch (error) { return runtimeError("NUMERIC_ERROR", error instanceof Error ? error.message : String(error), span); }
+}
+
+export function invokeUserFunction(callee: UserFunction, args: RuntimeValue[]): RuntimeValue {
+	if (args.length !== callee.parameters.length) throw new Error(`函数需要 ${callee.parameters.length} 个参数，实际收到 ${args.length} 个`);
+	const local = Object.create(callee.closure) as RuntimeScope;
+	callee.parameters.forEach((parameter, index) => { local[parameter] = args[index]; });
+	return evaluateExpression(callee.body, local);
 }
 
 function requireNumeric(value: RuntimeValue, span: SourceSpan): NumericValue {
