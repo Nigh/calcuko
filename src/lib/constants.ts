@@ -79,6 +79,7 @@ export const mathFunctions: Record<string, string> = {
 	sampleStd: "sampleStd(values...) — 样本标准差",
 	rand: "rand(min?, max?) — Web Crypto 随机小数",
 	randInt: "randInt(min, max) — 半开区间随机整数",
+	solve: "solve(fn, initial?, max?) — Newton-Raphson 数值求根",
 };
 
 export const mathConstants: Record<string, string> = {
