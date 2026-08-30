@@ -24,6 +24,6 @@ describe("legacy evaluator", () => {
 
 	it("does not expose browser or JavaScript globals", () => {
 		const result = evaluateSource("globalThis");
-		expect(result.lineResults[0]).toMatchObject({ type: "error" });
+		expect(result.lineResults[0]).toMatchObject({ type: "error", errorCode: "UNKNOWN_IDENTIFIER", line: 1, column: 1 });
 	});
 });

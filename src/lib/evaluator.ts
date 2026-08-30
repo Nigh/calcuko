@@ -2,6 +2,7 @@ import type { LineResult } from "./types";
 import { SI_MAP } from "./constants";
 import { evaluateStatement, type RuntimeScope } from "./language/interpreter";
 import { parse } from "./language/parser";
+import { LanguageError } from "./language/token";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -204,7 +205,7 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 	const nextLineResults: LineResult[] = [];
 	const nextSnapshot: Record<string, unknown> = {};
 
-	for (const rawLine of nextLines) {
+	for (const [lineIndex, rawLine] of nextLines.entries()) {
 		if (!rawLine.trim() || rawLine.trimStart().startsWith("//")) {
 			nextLineResults.push({ type: "empty", text: "" });
 			continue;
@@ -227,6 +228,16 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 				});
 			}
 		} catch (error) {
+			if (error instanceof LanguageError) {
+				nextLineResults.push({
+					type: "error",
+					text: `第 ${lineIndex + 1} 行，第 ${error.span.start.column} 列：${error.message}`,
+					errorCode: error.code,
+					line: lineIndex + 1,
+					column: error.span.start.column,
+				});
+				continue;
+			}
 			nextLineResults.push({
 				type: "error",
 				text: error instanceof Error ? error.message : String(error),

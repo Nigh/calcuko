@@ -300,7 +300,7 @@
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">3.</span>
-							<span>注释：支持 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">//</code> 开头的行注释。</span>
+							<span>注释：仅忽略前导空白后以 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">//</code> 开头的整行；表达式中的 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">//</code> 表示整数除法。</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">4.</span>
