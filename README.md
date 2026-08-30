@@ -72,6 +72,8 @@ scale(10, 3)
 
 数组支持递归逐元素运算与标量广播，例如 `[1,2,3]*4`；内置 `sum`、`ave`、`map`、`filter`、`aggregate`、`sort`、`reverse` 和 `unique`。
 
+`matrix([[1,2],[3,4]])` 构造独立矩阵值，支持矩阵/标量运算、矩阵乘法以及 `det()` 精确行列式。
+
 ## 📚 内置函数参考
 
 字符串中的空格和 `//` 会原样保留，例如 `url = "https://example.com/a b"`。
