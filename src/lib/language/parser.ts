@@ -32,6 +32,17 @@ export class Parser {
 			this.expect("eof", "函数定义末尾存在多余内容");
 			return { kind: "functionDefinition", name: name.lexeme, parameters, body, span: mergeSpan(start.span, body.span) };
 		}
+		if (this.isDestructuringAssignment()) {
+			const start = this.expect("leftBracket", "解构赋值缺少左方括号");
+			const names: string[] = [];
+			do names.push(this.expect("identifier", "解构目标必须是变量名").lexeme); while (this.match("comma"));
+			this.expect("rightBracket", "解构赋值缺少右方括号");
+			this.expectOperator("=", "解构赋值缺少等号");
+			if (new Set(names).size !== names.length) throw new LanguageError("DUPLICATE_TARGET", "解构赋值目标不能重名", start.span);
+			const value = this.parseExpression();
+			this.expect("eof", "解构赋值末尾存在多余内容");
+			return { kind: "destructuringAssignment", names, value, span: mergeSpan(start.span, value.span) };
+		}
 
 		if (this.peek().kind === "identifier" && this.peek(1).kind === "operator" && this.peek(1).lexeme === "=") {
 			const name = this.advance();
@@ -44,6 +55,18 @@ export class Parser {
 		const expression = this.parseExpression();
 		this.expect("eof", "表达式末尾存在多余内容");
 		return { kind: "expression", expression, span: expression.span };
+	}
+
+	private isDestructuringAssignment(): boolean {
+		if (this.peek().kind !== "leftBracket") return false;
+		let index = 1;
+		while (true) {
+			if (this.peek(index++).kind !== "identifier") return false;
+			if (this.peek(index).kind === "comma") { index++; continue; }
+			if (this.peek(index).kind !== "rightBracket") return false;
+			index++;
+			return this.peek(index).kind === "operator" && this.peek(index).lexeme === "=";
+		}
 	}
 
 	private parseExpression(minPrecedence = 0): Expression {

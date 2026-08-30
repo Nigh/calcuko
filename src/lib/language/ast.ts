@@ -18,4 +18,5 @@ export type Statement =
 	| { kind: "empty"; span: SourceSpan }
 	| { kind: "expression"; expression: Expression; span: SourceSpan }
 	| { kind: "assignment"; name: string; value: Expression; span: SourceSpan }
+	| { kind: "destructuringAssignment"; names: string[]; value: Expression; span: SourceSpan }
 	| { kind: "functionDefinition"; name: string; parameters: string[]; body: Expression; span: SourceSpan };

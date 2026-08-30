@@ -66,6 +66,8 @@ scale = (value, factor) => value * factor
 scale(10, 3)
 ```
 
+数组可以一次赋值给多个变量：`[a, b, c] = [10, 20, 30]`。两侧长度必须相同，否则不会写入任何目标变量。
+
 ## 📚 内置函数参考
 
 字符串中的空格和 `//` 会原样保留，例如 `url = "https://example.com/a b"`。

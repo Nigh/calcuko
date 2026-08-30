@@ -21,7 +21,7 @@ const runtimeError = (code: string, message: string, span: SourceSpan): never =>
 	throw new LanguageError(code, message, span);
 };
 
-export function evaluateStatement(statement: Statement, scope: RuntimeScope): { value: RuntimeValue; name?: string; hasSi: boolean } {
+export function evaluateStatement(statement: Statement, scope: RuntimeScope): { value: RuntimeValue; name?: string; names?: string[]; hasSi: boolean } {
 	if (statement.kind === "empty") return { value: null, hasSi: false };
 	if (statement.kind === "functionDefinition") {
 		const value: UserFunction = { kind: "userFunction", name: statement.name, parameters: statement.parameters, body: statement.body, closure: scope };
@@ -32,6 +32,14 @@ export function evaluateStatement(statement: Statement, scope: RuntimeScope): { 
 		const value = evaluateExpression(statement.value, scope);
 		scope[statement.name] = value;
 		return { value, name: statement.name, hasSi: expressionHasSi(statement.value) };
+	}
+	if (statement.kind === "destructuringAssignment") {
+		const value = evaluateExpression(statement.value, scope);
+		if (!Array.isArray(value)) return runtimeError("EXPECTED_ARRAY", "解构赋值右侧必须是数组", statement.value.span);
+		if (value.length !== statement.names.length) return runtimeError("DESTRUCTURE_LENGTH", `解构需要 ${statement.names.length} 个值，实际收到 ${value.length} 个`, statement.value.span);
+		// Validate the complete value before mutating scope so assignment is atomic.
+		statement.names.forEach((name, index) => { scope[name] = value[index]; });
+		return { value, names: statement.names, hasSi: false };
 	}
 	return { value: evaluateExpression(statement.expression, scope), hasSi: expressionHasSi(statement.expression) };
 }

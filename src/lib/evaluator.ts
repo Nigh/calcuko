@@ -226,7 +226,12 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 			continue;
 		}
 		try {
-			const { value, name, hasSi } = evaluateStatement(parse(rawLine), scope);
+			const { value, name, names, hasSi } = evaluateStatement(parse(rawLine), scope);
+			if (names) {
+				for (const assignedName of names) nextSnapshot[assignedName] = scope[assignedName];
+				nextLineResults.push({ type: "success", text: `[${names.join(", ")}] = ${formatValue(value)}` });
+				continue;
+			}
 			if (name) {
 				nextSnapshot[name] = value;
 				const displayValue = hasSi && isNumericValue(value) ? formatNumericWithSi(value) : formatValue(value);
