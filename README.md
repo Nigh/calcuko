@@ -80,6 +80,8 @@ scale(10, 3)
 
 Calcuko 内置了标准 Math 对象的所有常量和函数：
 
+工程函数还包括任意位宽 bit 操作，以及 `eccEncode(width,value)` / `eccDecode(width,encoded)` Hamming SECDED 编解码。
+
 | 类型 | 示例 |
 | :--- | :--- |
 | **常量** | `PI`, `E` |

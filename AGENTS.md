@@ -81,6 +81,7 @@ calcuko/
 - **矩阵**：`matrix(rows)` 将矩形二维数值数组转为独立 Matrix 类型，支持矩阵/标量运算、矩阵乘法与 `det()` 精确行列式
 - **位运算函数**：所有函数接收显式正位宽，支持任意精度掩码、旋转、bit/byte/nibble 翻转、bit count、奇偶校验及 pack/unpack
 - **数论函数**：BigInt 原生实现 `isPrime`、`primeFact`、`gcd`、`lcm`，覆盖负数、0 和数组/可变参数输入
+- **ECC**：`eccEncode`/`eccDecode` 实现 1–4096 数据位的 Hamming SECDED；解码以 RuntimeRecord 区分 clean、corrected、double-error
 - **错误模型**：tokenizer、parser 与解释器抛出带错误码和源码区间的 `LanguageError`；行结果包含绝对行号、列号及中文错误消息
 - **结构化结果**：`RuntimeRecord` 保存只读、有序的键值结果，统一 formatter 可递归显示、复制并用于变量快照
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
