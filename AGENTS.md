@@ -30,6 +30,7 @@ calcuko/
 ├── README.md                 # 项目说明文档
 ├── package.json              # 依赖与脚本
 ├── astro.config.mjs          # Astro 配置（含 PWA、Svelte、Tailwind 集成）
+├── .github/workflows/ci.yml  # GitHub Actions：测试、类型检查、生产构建
 ├── svelte.config.js          # Svelte 配置
 ├── tsconfig.json             # TypeScript 配置（extends astro/tsconfigs/strict）
 ├── assets/
@@ -122,8 +123,7 @@ npm run preview      # 预览构建结果
 1. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
 2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
 3. **模块拆分**：核心逻辑已拆分为 `src/lib/` 下的 `types.ts`（类型）、`constants.ts`（常量）、`evaluator.ts`（求值引擎）、`highlight.ts`（语法高亮），`FormulaCalculator.svelte` 仅负责 UI 和状态管理（约 260 行）
-4. **无测试**：项目无测试文件和测试框架配置
-5. **无 CI/CD 配置文件**：未发现 GitHub Actions 等 CI 配置
+4. **测试与 CI**：使用 Vitest 编写单元测试；GitHub Actions 对 `dev`/`main` 的提交和 PR 执行测试、类型检查及生产构建
 
 ---
 

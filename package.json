@@ -6,7 +6,10 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "check": "astro check",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astrojs/svelte": "^7.2.5",
@@ -17,7 +20,9 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
     "@vite-pwa/astro": "^1.2.0",
+    "vitest": "^4.1.11",
     "workbox-window": "^7.4.0"
   }
 }
