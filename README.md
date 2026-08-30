@@ -57,6 +57,15 @@ area = width * height
 diagonal = sqrt(pow(width, 2) + pow(height, 2))
 ```
 
+### 4. 自定义函数与 Lambda
+```javascript
+def square(x) = x**2
+square(12)
+
+scale = (value, factor) => value * factor
+scale(10, 3)
+```
+
 ## 📚 内置函数参考
 
 字符串中的空格和 `//` 会原样保留，例如 `url = "https://example.com/a b"`。

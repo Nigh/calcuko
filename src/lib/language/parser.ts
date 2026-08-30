@@ -22,6 +22,16 @@ export class Parser {
 	parseStatement(): Statement {
 		while (this.peek().kind === "comment") this.advance();
 		if (this.peek().kind === "eof") return { kind: "empty", span: this.peek().span };
+		if (this.peek().kind === "identifier" && this.peek().lexeme === "def") {
+			const start = this.advance();
+			const name = this.expect("identifier", "def 后需要函数名");
+			this.expect("leftParen", "函数名后需要参数列表");
+			const parameters = this.parseParameters();
+			this.expectOperator("=", "函数定义缺少等号");
+			const body = this.parseExpression();
+			this.expect("eof", "函数定义末尾存在多余内容");
+			return { kind: "functionDefinition", name: name.lexeme, parameters, body, span: mergeSpan(start.span, body.span) };
+		}
 
 		if (this.peek().kind === "identifier" && this.peek(1).kind === "operator" && this.peek(1).lexeme === "=") {
 			const name = this.advance();
@@ -37,6 +47,7 @@ export class Parser {
 	}
 
 	private parseExpression(minPrecedence = 0): Expression {
+		if (minPrecedence === 0 && this.isLambdaStart()) return this.parseLambda();
 		let left = this.parsePrefix();
 		left = this.parsePostfix(left);
 
@@ -61,6 +72,40 @@ export class Parser {
 			left = { kind: "conditional", condition: left, whenTrue, whenFalse, span: mergeSpan(left.span, whenFalse.span) };
 		}
 		return left;
+	}
+
+	private isLambdaStart(): boolean {
+		if (this.peek().kind === "identifier" && this.peek(1).kind === "operator" && this.peek(1).lexeme === "=>") return true;
+		if (this.peek().kind !== "leftParen") return false;
+		let index = 1;
+		if (this.peek(index).kind === "rightParen") index++;
+		else {
+			while (true) {
+				if (this.peek(index++).kind !== "identifier") return false;
+				if (this.peek(index).kind === "comma") { index++; continue; }
+				if (this.peek(index).kind === "rightParen") { index++; break; }
+				return false;
+			}
+		}
+		return this.peek(index).kind === "operator" && this.peek(index).lexeme === "=>";
+	}
+
+	private parseLambda(): Expression {
+		const start = this.peek();
+		let parameters: string[];
+		if (this.match("leftParen")) parameters = this.parseParameters();
+		else parameters = [this.expect("identifier", "Lambda 需要参数名").lexeme];
+		this.expectOperator("=>", "Lambda 缺少 =>");
+		const body = this.parseExpression();
+		return { kind: "lambda", parameters, body, span: mergeSpan(start.span, body.span) };
+	}
+
+	private parseParameters(): string[] {
+		const parameters: string[] = [];
+		if (this.peek().kind !== "rightParen") do parameters.push(this.expect("identifier", "参数必须是标识符").lexeme); while (this.match("comma"));
+		this.expect("rightParen", "参数列表缺少右括号");
+		if (new Set(parameters).size !== parameters.length) throw new LanguageError("DUPLICATE_PARAMETER", "函数参数不能重名", this.peek().span);
+		return parameters;
 	}
 
 	private parsePrefix(): Expression {
@@ -107,6 +152,11 @@ export class Parser {
 	private expect(kind: Token["kind"], message: string): Token {
 		const token = this.peek();
 		if (token.kind !== kind) throw new LanguageError("UNEXPECTED_TOKEN", message, token.span);
+		return this.advance();
+	}
+	private expectOperator(operator: string, message: string): Token {
+		const token = this.peek();
+		if (token.kind !== "operator" || token.lexeme !== operator) throw new LanguageError("UNEXPECTED_TOKEN", message, token.span);
 		return this.advance();
 	}
 }
