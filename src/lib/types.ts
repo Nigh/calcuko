@@ -5,4 +5,5 @@ export type LineResult = {
 	errorCode?: string;
 	line?: number;
 	column?: number;
+	preview?: { type: "color"; css: string };
 };
