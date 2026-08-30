@@ -2,7 +2,7 @@ import { LanguageError, type SourcePosition, type Token, type TokenKind } from "
 
 const identStart = /^(?:[\p{ID_Start}$]|\p{Extended_Pictographic})$/u;
 const identContinue = /^(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})$/u;
-const operators = ["**", "//", "==", "!=", ">=", "<=", "&&", "||", "=>", "<<", ">>", "..=", "..", "+", "-", "*", "/", "%", "=", ">", "<", "!", "~", "&", "|", "^"];
+const operators = ["**", "//", "==", "!=", ">=", "<=", "&&", "||", "=>", "<<", ">>", "..=", "..", "+", "-", "*", "/", "%", "$", "=", ">", "<", "!", "~", "&", "|", "^"];
 
 export function tokenize(source: string): Token[] {
 	const tokens: Token[] = [];
@@ -71,7 +71,7 @@ export function tokenize(source: string): Token[] {
 		}
 
 		const codePoint = String.fromCodePoint(source.codePointAt(offset) ?? 0);
-		if (identStart.test(codePoint)) {
+		if (identStart.test(codePoint) && !(codePoint === "$" && /\d/u.test(source[offset + 1] ?? ""))) {
 			for (let i = 0; i < codePoint.length; i++) advance();
 			while (offset < source.length) {
 				const next = String.fromCodePoint(source.codePointAt(offset) ?? 0);
