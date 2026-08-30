@@ -12,6 +12,7 @@ import { bitBuiltins } from "./builtins/bits";
 import { numberTheoryBuiltins } from "./builtins/numberTheory";
 import { eccBuiltins } from "./builtins/ecc";
 import { colorBuiltins, isColorValue } from "./builtins/colors";
+import { encodingBuiltins } from "./builtins/encoding";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -232,6 +233,7 @@ export const mathContext: RuntimeScope = {
 	...numberTheoryBuiltins,
 	...eccBuiltins,
 	...colorBuiltins,
+	...encodingBuiltins,
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
