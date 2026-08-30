@@ -11,6 +11,7 @@ import { Matrix, determinant, isMatrix } from "./language/matrix";
 import { bitBuiltins } from "./builtins/bits";
 import { numberTheoryBuiltins } from "./builtins/numberTheory";
 import { eccBuiltins } from "./builtins/ecc";
+import { colorBuiltins, isColorValue } from "./builtins/colors";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -132,6 +133,7 @@ export function toOct(n: NumericValue): string {
 }
 
 export function formatValue(value: unknown): string {
+	if (isColorValue(value)) return `${value.space}(${value.channels.map((item) => item.toDecimalPlaces(4).toString()).join(", ")})`;
 	if (isRuntimeRecord(value)) return `{ ${Object.entries(value.entries).map(([key, item]) => `${key}: ${formatValue(item)}`).join(", ")} }`;
 	if (isMatrix(value)) return `matrix(${formatValue(value.rows)})`;
 	if (isUserFunction(value)) return `<function${value.name ? ` ${value.name}` : ""}(${value.parameters.join(", ")})>`;
@@ -229,6 +231,7 @@ export const mathContext: RuntimeScope = {
 	...bitBuiltins,
 	...numberTheoryBuiltins,
 	...eccBuiltins,
+	...colorBuiltins,
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
@@ -259,13 +262,15 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 				nextLineResults.push({ 
 					type: "success", 
 					text: `${name} = ${displayValue}`,
-					varName: name
+					varName: name,
+					preview: isColorValue(value) ? { type: "color", css: value.css } : undefined,
 				});
 			} else if (value !== null) {
 				const displayValue = hasSi && isNumericValue(value) ? formatNumericWithSi(value) : formatValue(value);
 				nextLineResults.push({ 
 					type: "success", 
 					text: displayValue,
+					preview: isColorValue(value) ? { type: "color", css: value.css } : undefined,
 				});
 			}
 		} catch (error) {

@@ -4,6 +4,7 @@
 	import { highlight } from "../lib/highlight";
 	import { storageKey, sampleFormula, mathFunctions, mathConstants } from "../lib/constants";
 	import type { LineResult } from "../lib/types";
+	import { isColorValue } from "../lib/builtins/colors";
 
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 
@@ -232,6 +233,7 @@
 				<div bind:this={resultsPanel} class="overflow-hidden border-l border-base-300 bg-base-200/20 px-4 py-4">
 					{#each lineResults as item}
 						<div class:text-error={item.type === 'error'} class:text-success={item.type === 'success'} class:font-bold={item.varName} class="h-6 overflow-hidden text-ellipsis whitespace-nowrap opacity-90 hover:opacity-100" title={item.text}>
+							{#if item.preview?.type === 'color'}<span class="mr-1 inline-block h-3 w-3 rounded-sm border border-base-content/20 align-middle" style:background={item.preview.css} aria-label="颜色预览"></span>{/if}
 							{item.text || ' '}
 						</div>
 					{/each}
@@ -258,6 +260,7 @@
 										on:click={() => copyValue(formatValue(value))}
 										title="点击复制值"
 									>
+										{#if isColorValue(value)}<span class="inline-block h-3 w-3 rounded-sm border border-base-content/20" style:background={value.css} aria-label="颜色预览"></span>{/if}
 										<span class="font-semibold text-base-content/70">{name}</span>
 										<span class="text-base-content/50">=</span>
 										<span class="text-primary">{formatValue(value)}</span>

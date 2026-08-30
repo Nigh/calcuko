@@ -49,6 +49,18 @@ export const mathFunctions: Record<string, string> = {
 	lcm: "lcm(values...) — 最小公倍数",
 	eccEncode: "eccEncode(width, value) — Hamming SECDED 编码",
 	eccDecode: "eccDecode(width, encoded) — 检测并纠正单比特错误",
+	rgb: "rgb(r,g,b) — 构造 RGB 颜色",
+	hsl: "hsl(h,s,l) — 构造 HSL 颜色",
+	hsv: "hsv(h,s,v) — 构造 HSV 颜色",
+	yuv: "yuv(y,u,v) — 构造 BT.601 YUV 颜色",
+	hexColor: "hexColor(text) — 解析 Web Hex 颜色",
+	rgb565: "rgb565(value) — 解析 16 位 RGB565",
+	toRgb: "toRgb(color) — 转 RGB",
+	toHsl: "toHsl(color) — 转 HSL",
+	toHsv: "toHsv(color) — 转 HSV",
+	toYuv: "toYuv(color) — 转 BT.601 YUV",
+	toRgb565: "toRgb565(color) — 转 RGB565",
+	toHexColor: "toHexColor(color) — 转 #RRGGBB",
 };
 
 export const mathConstants: Record<string, string> = {

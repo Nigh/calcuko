@@ -4,8 +4,9 @@ import Decimal from "decimal.js";
 import { numericBinary, parseNumeric, toBigIntExact, type NumericValue } from "./numeric";
 import { createRange } from "./ranges";
 import { Matrix, isMatrix, matrixBinary } from "./matrix";
+import type { ColorValue } from "../builtins/colors";
 
-export type RuntimeValue = NumericValue | Matrix | RuntimeRecord | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
+export type RuntimeValue = NumericValue | Matrix | ColorValue | RuntimeRecord | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
 // Built-ins are adapted at the registry boundary; permissive parameters allow
 // native Math functions while call results are still validated by the runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
