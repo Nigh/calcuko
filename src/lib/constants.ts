@@ -34,6 +34,7 @@ export const mathFunctions: Record<string, string> = {
 	bigint: "bigint(x) — 转任意精度整数",
 	decimal: "decimal(x) — 转 34 位高精度小数",
 	rat: "rat(a, b) — 构造精确分数 a$b",
+	range: "range(start, stop, step?) — 生成不含终点的数值范围",
 };
 
 export const mathConstants: Record<string, string> = {
