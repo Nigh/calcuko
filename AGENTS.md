@@ -30,6 +30,7 @@ calcuko/
 ├── README.md                 # 项目说明文档
 ├── package.json              # 依赖与脚本
 ├── astro.config.mjs          # Astro 配置（含 PWA、Svelte、Tailwind 集成）
+├── .github/workflows/ci.yml  # GitHub Actions：测试、类型检查、生产构建
 ├── svelte.config.js          # Svelte 配置
 ├── tsconfig.json             # TypeScript 配置（extends astro/tsconfigs/strict）
 ├── assets/
@@ -45,6 +46,7 @@ calcuko/
     ├── layouts/
     │   └── Layout.astro              # 全局 HTML 布局（含 ClientRouter、PWA manifest）
     ├── lib/
+    │   ├── language/                 # 表达式语言 tokenizer、AST、Pratt parser、源码位置类型及测试
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 常量（SI_MAP、示例公式、帮助弹窗数据）
     │   ├── evaluator.ts              # ⭐ 求值引擎（进制/SI/emoji 处理、evaluateSource 等）
@@ -64,10 +66,13 @@ calcuko/
 ### FormulaCalculator.svelte 核心逻辑
 - **Header 图标**：使用 `<img src="/favicon.svg">` 引用 `public/favicon.svg` 作为品牌 logo，替代之前的内联计算器 SVG
 - **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
-- **实现方式**：`new Function("scope", "with (scope) { return (expr); }")` 执行表达式
+- **实现方式**：表达式经 tokenizer、Pratt parser 生成 AST，再由受控解释器在显式 scope 中执行，不调用 JavaScript 动态求值
 - **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等），以及进制转换函数 `hex()` `bin()` `oct()`
 - **变量作用域**：逐行累积 scope 对象，后续行可引用前面定义的变量
 - **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
+- **Tokenizer**：`src/lib/language/tokenizer.ts` 生成带行列与源码区间的 token；字符串内容不会被空格、进制或注释规则改写，只有忽略前导空白后以 `//` 开头的整行才是注释
+- **Parser**：`src/lib/language/parser.ts` 使用 Pratt 算法生成 AST，集中定义操作符优先级和结合性，支持赋值、调用、数组、条件表达式与隐式乘法
+- **错误模型**：tokenizer、parser 与解释器抛出带错误码和源码区间的 `LanguageError`；行结果包含绝对行号、列号及中文错误消息
 - **行内空格忽略**：非注释行的所有空格在求值前被剥离，支持自由格式输入；行内 `//` 后的内容作为注释保留
 - **注释**：`//` 开头的行和空行被跳过，行内 `//` 后内容作为注释忽略
 - **进制字面量**：`expandRadixLiterals()` 在 SI 词缀展开前处理 `0x`（十六进制）、`0b`（二进制）、`0`（八进制）前缀，转换为十进制字符串；八进制匹配排除小数点后的片段（避免 `0.00001` 被误解析）
@@ -76,7 +81,7 @@ calcuko/
 - **SI 词缀支持**：数字尾部支持 SI 单位词缀 T/G/M/k/m/u/n/p，求值前自动展开为科学计数法；仅当输入行使用了 SI 词缀时，结果才以 SI 词缀格式显示
 - **隐式乘法**：数字后直接接变量名（如 `2PI` `3R1`）自动展开为乘法表达式；`10kOhm` 优先匹配完整变量 `kOhm`，不存在时降级为 SI 词缀 `k` + 变量 `Ohm`
 - **结果格式化**：小数限制 4 位，NaN/Infinity 特殊处理，带 SI 词缀的结果自动以词缀格式化
-- **语法高亮**：自定义 tokenizer（`src/lib/highlight.ts`），支持注释、数值（含 SI 词缀、进制数值 0x/0b/0 前缀）、运算符、括号、变量六种 token 类型
+- **语法高亮**：`src/lib/highlight.ts` 直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符、括号和变量，避免高亮与求值语法漂移
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
 - **帮助弹窗**：Header 中的「帮助」按钮弹出 DaisyUI modal，展示 8 条基本用法说明（含进制）、19 个函数（含 hex/bin/oct）和 2 个常量的详细列表；内置 `mathFunctions` 和 `mathConstants` 对象定义展示内容
 - **编辑器标题栏操作**：标题栏右侧放置「示例」和「清除」按钮——示例载入内置公式，清除清空编辑器及 localStorage
@@ -119,11 +124,10 @@ npm run preview      # 预览构建结果
 
 ## ⚠️ 注意事项
 
-1. **`new Function` 安全性**：求值引擎使用 `new Function` + `with` 语句，仅适合本地/受信输入场景
+1. **表达式边界**：求值器只执行 AST 支持的语法和注册到 scope 的函数，不开放浏览器全局对象
 2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
 3. **模块拆分**：核心逻辑已拆分为 `src/lib/` 下的 `types.ts`（类型）、`constants.ts`（常量）、`evaluator.ts`（求值引擎）、`highlight.ts`（语法高亮），`FormulaCalculator.svelte` 仅负责 UI 和状态管理（约 260 行）
-4. **无测试**：项目无测试文件和测试框架配置
-5. **无 CI/CD 配置文件**：未发现 GitHub Actions 等 CI 配置
+4. **测试与 CI**：使用 Vitest 编写单元测试；GitHub Actions 对 `dev`/`main` 的提交和 PR 执行测试、类型检查及生产构建
 
 ---
 
