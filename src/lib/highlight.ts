@@ -1,58 +1,34 @@
+import { tokenize } from "./language/tokenizer";
+import type { Token } from "./language/token";
+
 function esc(s: string): string {
-	let r = "";
-	for (const ch of s) {
-		if (ch === "&") r += "&#38;";
-		else if (ch === "<") r += "&#60;";
-		else if (ch === ">") r += "&#62;";
-		else r += ch;
-	}
-	return r;
+	return s.replaceAll("&", "&#38;").replaceAll("<", "&#60;").replaceAll(">", "&#62;");
 }
 
+const tokenClass = (token: Token): string | undefined => {
+	if (["comment", "number", "string", "operator"].includes(token.kind)) return token.kind;
+	if (token.kind === "identifier") return "variable";
+	if (["leftParen", "rightParen", "leftBracket", "rightBracket"].includes(token.kind)) return "bracket";
+	return undefined;
+};
+
 export function highlight(text: string, cursorPosition: number, matchedBracketIndex: number | null): string {
-	const tokens = [
-		{ type: "comment", regex: /\/\/.*/ },
-		{ type: "number", regex: /0x[0-9a-fA-F]+/ },
-		{ type: "number", regex: /0b[01]+/ },
-		{ type: "number", regex: /0[0-7]+/ },
-		{ type: "number", regex: /\d*\.?\d+[TGMkmunp]/ },
-		{ type: "number", regex: /\d*\.?\d+/ },
-		{ type: "operator", regex: /[+\-*/=<>!&|^%]+/ },
-		{ type: "bracket", regex: /[()\[\]{}]/ },
-		{ type: "variable", regex: /(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*/u },
-	];
+	let tokens: Token[];
+	try { tokens = tokenize(text).filter((token) => token.kind !== "eof"); }
+	catch { return esc(text) + "\n"; }
 
 	let result = "";
-	let i = 0;
-	while (i < text.length) {
-		let matched = false;
-
-		if (i === cursorPosition || i === matchedBracketIndex) {
-			const ch = text[i];
-			if ("()[]{}".includes(ch)) {
-				result += `<span class="bg-primary/30 text-primary font-bold underline">${esc(ch)}</span>`;
-				i++;
-				matched = true;
-				continue;
-			}
+	let offset = 0;
+	for (const token of tokens) {
+		result += esc(text.slice(offset, token.span.start.offset));
+		const cssClass = tokenClass(token);
+		let content = esc(token.lexeme);
+		if (cssClass === "bracket" && (token.span.start.offset === cursorPosition || token.span.start.offset === cursorPosition - 1 || token.span.start.offset === matchedBracketIndex)) {
+			content = `<span class="bg-primary/30 text-primary font-bold underline">${content}</span>`;
 		}
-
-		for (const token of tokens) {
-			const substr = text.slice(i);
-			const m = substr.match(token.regex);
-			if (m && substr.indexOf(m[0]) === 0) {
-				result += `<span class="token-${token.type}">${esc(m[0])}</span>`;
-				i += m[0].length;
-				matched = true;
-				break;
-			}
-		}
-
-		if (!matched) {
-			result += esc(text[i]);
-			i++;
-		}
+		result += cssClass ? `<span class="token-${cssClass}">${content}</span>` : content;
+		offset = token.span.end.offset;
 	}
-
+	result += esc(text.slice(offset));
 	return result + "\n";
 }

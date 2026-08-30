@@ -372,6 +372,7 @@
 <style>
 	:global(.token-comment) { color: #94a3b8; font-style: italic; }
 	:global(.token-number) { color: #f59e0b; }
+	:global(.token-string) { color: #10b981; }
 	:global(.token-operator) { color: #ec4899; font-weight: bold; }
 	:global(.token-bracket) { color: #6366f1; }
 	:global(.token-variable) { color: #0ea5e9; }
