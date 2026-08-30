@@ -5,12 +5,17 @@ import { numericBinary, parseNumeric, toBigIntExact, type NumericValue } from ".
 import { createRange } from "./ranges";
 import { Matrix, isMatrix, matrixBinary } from "./matrix";
 
-export type RuntimeValue = NumericValue | Matrix | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
+export type RuntimeValue = NumericValue | Matrix | RuntimeRecord | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
 // Built-ins are adapted at the registry boundary; permissive parameters allow
 // native Math functions while call results are still validated by the runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type BuiltinFunction = (...args: any[]) => RuntimeValue;
 export type RuntimeScope = Record<string, RuntimeValue>;
+export class RuntimeRecord {
+	readonly entries: Readonly<Record<string, RuntimeValue>>;
+	constructor(entries: Record<string, RuntimeValue>) { this.entries = Object.freeze({ ...entries }); }
+}
+export const isRuntimeRecord = (value: unknown): value is RuntimeRecord => value instanceof RuntimeRecord;
 export interface UserFunction {
 	kind: "userFunction";
 	name?: string;

@@ -1,6 +1,6 @@
 import type { LineResult } from "./types";
 import { SI_MAP } from "./constants";
-import { evaluateStatement, isUserFunction, type RuntimeScope } from "./language/interpreter";
+import { evaluateStatement, isRuntimeRecord, isUserFunction, type RuntimeScope } from "./language/interpreter";
 import { parse } from "./language/parser";
 import { LanguageError } from "./language/token";
 import Decimal from "decimal.js";
@@ -131,6 +131,7 @@ export function toOct(n: NumericValue): string {
 }
 
 export function formatValue(value: unknown): string {
+	if (isRuntimeRecord(value)) return `{ ${Object.entries(value.entries).map(([key, item]) => `${key}: ${formatValue(item)}`).join(", ")} }`;
 	if (isMatrix(value)) return `matrix(${formatValue(value.rows)})`;
 	if (isUserFunction(value)) return `<function${value.name ? ` ${value.name}` : ""}(${value.parameters.join(", ")})>`;
 	if (typeof value === "bigint" || value instanceof Decimal || value instanceof Rational) return formatNumeric(value);
