@@ -47,6 +47,8 @@ export const mathFunctions: Record<string, string> = {
 	primeFact: "primeFact(n) — 质因数分解",
 	gcd: "gcd(values...) — 最大公约数",
 	lcm: "lcm(values...) — 最小公倍数",
+	eccEncode: "eccEncode(width, value) — Hamming SECDED 编码",
+	eccDecode: "eccDecode(width, encoded) — 检测并纠正单比特错误",
 };
 
 export const mathConstants: Record<string, string> = {

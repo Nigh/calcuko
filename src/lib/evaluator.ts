@@ -1,6 +1,6 @@
 import type { LineResult } from "./types";
 import { SI_MAP } from "./constants";
-import { evaluateStatement, isUserFunction, type RuntimeScope } from "./language/interpreter";
+import { evaluateStatement, isRuntimeRecord, isUserFunction, type RuntimeScope } from "./language/interpreter";
 import { parse } from "./language/parser";
 import { LanguageError } from "./language/token";
 import Decimal from "decimal.js";
@@ -10,6 +10,7 @@ import { arrayBuiltins } from "./language/arrays";
 import { Matrix, determinant, isMatrix } from "./language/matrix";
 import { bitBuiltins } from "./builtins/bits";
 import { numberTheoryBuiltins } from "./builtins/numberTheory";
+import { eccBuiltins } from "./builtins/ecc";
 
 // 展开进制字面量：0x→十六进制，0b→二进制，0→八进制
 export function expandRadixLiterals(expr: string): string {
@@ -131,6 +132,7 @@ export function toOct(n: NumericValue): string {
 }
 
 export function formatValue(value: unknown): string {
+	if (isRuntimeRecord(value)) return `{ ${Object.entries(value.entries).map(([key, item]) => `${key}: ${formatValue(item)}`).join(", ")} }`;
 	if (isMatrix(value)) return `matrix(${formatValue(value.rows)})`;
 	if (isUserFunction(value)) return `<function${value.name ? ` ${value.name}` : ""}(${value.parameters.join(", ")})>`;
 	if (typeof value === "bigint" || value instanceof Decimal || value instanceof Rational) return formatNumeric(value);
@@ -226,6 +228,7 @@ export const mathContext: RuntimeScope = {
 	},
 	...bitBuiltins,
 	...numberTheoryBuiltins,
+	...eccBuiltins,
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
