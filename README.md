@@ -88,6 +88,10 @@ Calcuko 内置了标准 Math 对象的所有常量和函数：
 
 `solve(f)`、`solve(f, initial)` 或 `solve(f, min, max)` 使用带预算的 Newton-Raphson 数值求根。
 
+### 与 Calctus 的差异
+
+Calcuko 采用自有 tokenizer、AST 和受控解释器，并非 Calctus 语法或函数集的逐项复刻。当前重点覆盖多行依赖、高精度数值、数组/矩阵、bit/SECDED、颜色、编码、统计和数值求根；暂不支持外部脚本、日期时间、绘图，以及 Calctus 的全部内置函数。注释仅允许整行 `//`，表达式内的 `//` 固定表示整数除法。
+
 | 类型 | 示例 |
 | :--- | :--- |
 | **常量** | `PI`, `E` |
@@ -108,3 +112,8 @@ npm run dev
 
 # 构建生产版本 (PWA)
 npm run build
+
+# 单元测试、类型检查和浏览器冒烟测试
+npm test
+npm run check
+npm run test:e2e

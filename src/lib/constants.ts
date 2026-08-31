@@ -1,16 +1,5 @@
 export const storageKey = "calcuko-formulas";
 
-export const SI_MAP: Record<string, number> = {
-	T: 1e12,
-	G: 1e9,
-	M: 1e6,
-	k: 1e3,
-	m: 1e-3,
-	u: 1e-6,
-	n: 1e-9,
-	p: 1e-12,
-};
-
 export const mathFunctions: Record<string, string> = {
 	abs: "Math.abs(x) — 绝对值",
 	acos: "Math.acos(x) — 反余弦",

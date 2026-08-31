@@ -9,7 +9,8 @@
     "astro": "astro",
     "check": "astro check",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@astrojs/svelte": "^7.2.5",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@playwright/test": "^1.62.1",
     "@vite-pwa/astro": "^1.2.0",
     "vitest": "^4.1.11",
     "workbox-window": "^7.4.0"

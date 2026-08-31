@@ -15,8 +15,8 @@ export default defineConfig({
         name: 'Calcuko - 多行变量公式计算器',
         short_name: 'Calcuko',
         description: '支持多行变量定义与实时联动计算的 PWA 计算器',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: '#120f14',
+        background_color: '#120f14',
         display: 'standalone',
         icons: [
           {
@@ -32,7 +32,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        navigateFallback: '/calcuko/404',
+        navigateFallback: '/calcuko/index.html',
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt}'],
       },
       devOptions: {
