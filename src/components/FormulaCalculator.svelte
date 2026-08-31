@@ -13,6 +13,7 @@
 	let textarea: HTMLTextAreaElement | undefined;
 	let backdrop: HTMLDivElement | undefined;
 	let resultsPanel: HTMLDivElement | undefined;
+	let helpCloseButton: HTMLButtonElement | undefined;
 	let variableSnapshot: Record<string, unknown> = {};
 	let lineResults: LineResult[] = [];
 	let lines: string[] = [];
@@ -23,6 +24,7 @@
 	let helpDialogOpen = false;
 	let showCopyToast = false;
 	let copyToastText = "";
+	let undoSource: string | null = null;
 
 	function handleInput() {
 		localStorage.setItem(storageKey, source);
@@ -91,6 +93,8 @@
 	}
 
 	function resetSample() {
+		if (!window.confirm("载入示例将替换当前内容，是否继续？")) return;
+		undoSource = source;
 		source = sampleFormula;
 		localStorage.setItem(storageKey, source);
 		queueMicrotask(() => {
@@ -100,6 +104,8 @@
 	}
 
 	function clearEditor() {
+		if (!window.confirm("确定要清空全部公式吗？")) return;
+		undoSource = source;
 		source = "";
 		localStorage.setItem(storageKey, source);
 		queueMicrotask(() => {
@@ -108,12 +114,27 @@
 		});
 	}
 
+	function undoProgrammaticChange() {
+		if (undoSource === null) return;
+		const previous = source;
+		source = undoSource;
+		undoSource = previous;
+		localStorage.setItem(storageKey, source);
+		queueMicrotask(() => { handleScroll(); updateCursor(); });
+	}
+
 	function openHelp() {
 		helpDialogOpen = true;
+		queueMicrotask(() => helpCloseButton?.focus());
 	}
 
 	function closeHelp() {
 		helpDialogOpen = false;
+		queueMicrotask(() => textarea?.focus());
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent) {
+		if (helpDialogOpen && event.key === "Escape") closeHelp();
 	}
 
 	function handleDialogOverlayClick(e: MouseEvent) {
@@ -141,7 +162,7 @@
 
 	onMount(() => {
 		const saved = typeof localStorage !== "undefined" ? localStorage.getItem(storageKey) : null;
-		if (saved) {
+		if (saved !== null) {
 			source = saved;
 		}
 		queueMicrotask(() => {
@@ -157,6 +178,8 @@
 		variableSnapshot = result.variableSnapshot;
 	}
 </script>
+
+<svelte:window on:keydown={handleWindowKeydown} />
 
 <div class="mx-auto flex h-dvh w-full max-w-7xl flex-col gap-4 overflow-hidden px-4 py-4 md:px-6 lg:py-6">
 	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
@@ -187,6 +210,7 @@
 			<!-- 编辑器标题栏 -->
 			<div class="flex items-center justify-between border-b border-base-300 bg-base-50/50 px-5 py-3">
 				<div class="flex items-center gap-2">
+					{#if undoSource !== null}<button class="btn btn-ghost btn-xs" type="button" on:click={undoProgrammaticChange} title="撤销最近一次载入或清空">撤销</button>{/if}
 					<div class="h-2 w-2 rounded-full bg-success"></div>
 					<h2 class="text-sm font-bold opacity-70">EDITOR</h2>
 				</div>
@@ -284,7 +308,7 @@
 					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
 					<h2 class="text-lg font-bold">帮助</h2>
 				</div>
-				<button class="btn btn-ghost btn-sm btn-square" type="button" on:click={closeHelp}>
+				<button bind:this={helpCloseButton} class="btn btn-ghost btn-sm btn-square" type="button" on:click={closeHelp} aria-label="关闭帮助">
 					<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
 				</button>
 			</div>
