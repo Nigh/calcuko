@@ -1,185 +1,140 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { basicSetup } from "codemirror";
+	import { EditorState } from "@codemirror/state";
+	import { EditorView } from "@codemirror/view";
 	import { evaluateSource, formatValue } from "../lib/evaluator";
-	import { highlight } from "../lib/highlight";
 	import { storageKey, sampleFormula, mathFunctions, mathConstants } from "../lib/constants";
 	import type { LineResult } from "../lib/types";
 	import { isColorValue } from "../lib/builtins/colors";
+	import { isMatrix } from "../lib/language/matrix";
+	import { formatOptions, formatResult, type FormatOption, type ResultFormat, type ResultValueKind } from "../lib/resultFormatting";
+	import { editorUiField, setEditorUi, syntaxDecorations } from "../lib/editorExtensions";
 
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
+	const formatStorageKey = "calcuko-result-formats";
+	type StoredLineFormat = { lineText: string; kind: ResultValueKind; format: ResultFormat };
 
 	let source = sampleFormula;
-	let lineNumbers: HTMLDivElement | undefined;
-	let textarea: HTMLTextAreaElement | undefined;
-	let backdrop: HTMLDivElement | undefined;
+	let editorHost: HTMLDivElement;
+	let editorView: EditorView | undefined;
 	let resultsPanel: HTMLDivElement | undefined;
 	let helpCloseButton: HTMLButtonElement | undefined;
 	let variableSnapshot: Record<string, unknown> = {};
 	let lineResults: LineResult[] = [];
 	let lines: string[] = [];
-
-	let cursorPosition = 0;
-	let matchedBracketIndex: number | null = null;
-
+	let activeLine = 1;
+	let hoverLine: number | null = null;
+	let resultHeights: number[] = [];
+	let lineFormats: Record<number, StoredLineFormat> = {};
+	let formatMenuLine: number | null = null;
+	let formatMenuPosition = { top: 0, left: 0 };
 	let helpDialogOpen = false;
 	let showCopyToast = false;
 	let copyToastText = "";
 	let undoSource: string | null = null;
 
-	function handleInput() {
-		localStorage.setItem(storageKey, source);
-		updateCursor();
-	}
-
-	function handleScroll() {
-		if (!textarea) return;
-		const { scrollTop, scrollLeft } = textarea;
-		if (lineNumbers) lineNumbers.scrollTop = scrollTop;
-		if (resultsPanel) resultsPanel.scrollTop = scrollTop;
-		if (backdrop) {
-			backdrop.scrollTop = scrollTop;
-			backdrop.scrollLeft = scrollLeft;
+	const persistFormats = () => localStorage.setItem(formatStorageKey, JSON.stringify({ source, formats: lineFormats }));
+	function reconcileFormats(oldSource: string, nextSource: string) {
+		const oldLines = oldSource.split("\n"), nextLines = nextSource.split("\n");
+		const migrated: Record<number, StoredLineFormat> = {}, used = new Set<number>();
+		for (const [key, stored] of Object.entries(lineFormats)) {
+			const oldIndex = Number(key) - 1;
+			const candidates = nextLines.map((text, index) => ({ text, index })).filter(({ text, index }) => text === stored.lineText && !used.has(index));
+			let index = candidates.sort((a, b) => Math.abs(a.index - oldIndex) - Math.abs(b.index - oldIndex))[0]?.index;
+			if (index === undefined && oldIndex < nextLines.length && nextLines[oldIndex].trim()) index = oldIndex;
+			if (index !== undefined) { used.add(index); migrated[index + 1] = { ...stored, lineText: nextLines[index] }; }
 		}
+		lineFormats = migrated;
 	}
-
-	function updateCursor() {
-		if (!textarea) return;
-		cursorPosition = textarea.selectionStart;
-		findMatchedBracket();
-	}
-
-	function findMatchedBracket() {
-		matchedBracketIndex = null;
-		if (!source) return;
-
-		const charAtCursor = source[cursorPosition];
-		const charBeforeCursor = source[cursorPosition - 1];
-
-		let targetChar = "";
-		let startPos = -1;
-
-		const pairs: Record<string, string> = {
-			"(": ")",
-			")": "(",
-			"[": "]",
-			"]": "[",
-			"{": "}",
-			"}": "{",
-		};
-
-		if (pairs[charAtCursor]) {
-			startPos = cursorPosition;
-			targetChar = charAtCursor;
-		} else if (pairs[charBeforeCursor]) {
-			startPos = cursorPosition - 1;
-			targetChar = charBeforeCursor;
+	function cleanFormats() {
+		let changed = false;
+		const cleaned: Record<number, StoredLineFormat> = {};
+		for (const [key, stored] of Object.entries(lineFormats)) {
+			const index = Number(key) - 1, result = lineResults[index];
+			if (lines[index]?.trim() && result?.type === "success" && result.valueKind === stored.kind) cleaned[index + 1] = { ...stored, lineText: lines[index] };
+			else changed = true;
 		}
-
-		if (startPos !== -1) {
-			const pairChar = pairs[targetChar];
-			const direction = "([{".includes(targetChar) ? 1 : -1;
-
-			let depth = 0;
-			for (let i = startPos; i >= 0 && i < source.length; i += direction) {
-				if (source[i] === targetChar) depth++;
-				else if (source[i] === pairChar) depth--;
-
-				if (depth === 0) {
-					matchedBracketIndex = i;
-					break;
-				}
-			}
-		}
+		if (changed) { lineFormats = cleaned; if (typeof localStorage !== "undefined") persistFormats(); }
 	}
-
+	function dispatchEditorUi() {
+		if (!editorView) return;
+		editorView.dispatch({ effects: setEditorUi.of({ activeLine, hoverLine, errorLines: lineResults.flatMap((item, index) => item.type === "error" ? [index + 1] : []), resultHeights }) });
+	}
+	function replaceSource(next: string) {
+		if (!editorView) { source = next; return; }
+		editorView.dispatch({ changes: { from: 0, to: editorView.state.doc.length, insert: next } });
+	}
 	function resetSample() {
 		if (!window.confirm("载入示例将替换当前内容，是否继续？")) return;
-		undoSource = source;
-		source = sampleFormula;
-		localStorage.setItem(storageKey, source);
-		queueMicrotask(() => {
-			handleScroll();
-			updateCursor();
-		});
+		undoSource = source; replaceSource(sampleFormula);
 	}
-
 	function clearEditor() {
 		if (!window.confirm("确定要清空全部公式吗？")) return;
-		undoSource = source;
-		source = "";
-		localStorage.setItem(storageKey, source);
-		queueMicrotask(() => {
-			handleScroll();
-			updateCursor();
-		});
+		undoSource = source; lineFormats = {}; localStorage.removeItem(formatStorageKey); replaceSource("");
 	}
-
-	function undoProgrammaticChange() {
-		if (undoSource === null) return;
-		const previous = source;
-		source = undoSource;
-		undoSource = previous;
-		localStorage.setItem(storageKey, source);
-		queueMicrotask(() => { handleScroll(); updateCursor(); });
+	function undoProgrammaticChange() { if (undoSource !== null) { const previous = source; replaceSource(undoSource); undoSource = previous; } }
+	function openHelp() { helpDialogOpen = true; queueMicrotask(() => helpCloseButton?.focus()); }
+	function closeHelp() { helpDialogOpen = false; queueMicrotask(() => editorView?.focus()); }
+	function handleWindowClick() { formatMenuLine = null; }
+	function toggleFormatMenu(event: MouseEvent, index: number) {
+		if (!formatOptions(lineResults[index]?.value).length) return;
+		if (formatMenuLine === index + 1) { formatMenuLine = null; return; }
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		const width = 208, estimatedHeight = 340;
+		formatMenuPosition = { left: Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width)), top: rect.bottom + estimatedHeight <= window.innerHeight ? rect.bottom + 4 : Math.max(8, rect.top - estimatedHeight - 4) };
+		formatMenuLine = index + 1;
 	}
-
-	function openHelp() {
-		helpDialogOpen = true;
-		queueMicrotask(() => helpCloseButton?.focus());
-	}
-
-	function closeHelp() {
-		helpDialogOpen = false;
-		queueMicrotask(() => textarea?.focus());
-	}
-
-	function handleWindowKeydown(event: KeyboardEvent) {
-		if (helpDialogOpen && event.key === "Escape") closeHelp();
-	}
-
-	function handleDialogOverlayClick(e: MouseEvent) {
-		const target = e.target as HTMLElement;
-		if (target.classList.contains("dialog-overlay")) {
-			closeHelp();
-		}
-	}
-
+	function syncResultsScroll() { if (editorView && resultsPanel && Math.abs(editorView.scrollDOM.scrollTop - resultsPanel.scrollTop) > 1) editorView.scrollDOM.scrollTop = resultsPanel.scrollTop; }
+	function handleWindowKeydown(event: KeyboardEvent) { if (event.key === "Escape") { if (formatMenuLine !== null) formatMenuLine = null; else if (helpDialogOpen) closeHelp(); } }
+	function handleDialogOverlayClick(event: MouseEvent) { if ((event.target as HTMLElement).classList.contains("dialog-overlay")) closeHelp(); }
 	function copyValue(value: string) {
-		navigator.clipboard.writeText(value).then(() => {
-			copyToastText = `已复制: ${value}`;
-			showCopyToast = true;
-			setTimeout(() => {
-				showCopyToast = false;
-			}, 2000);
-		}).catch(() => {
-			copyToastText = "复制失败";
-			showCopyToast = true;
-			setTimeout(() => {
-				showCopyToast = false;
-			}, 2000);
-		});
+		navigator.clipboard.writeText(value).then(() => { copyToastText = `已复制: ${value}`; showCopyToast = true; setTimeout(() => showCopyToast = false, 2000); }).catch(() => { copyToastText = "复制失败"; showCopyToast = true; setTimeout(() => showCopyToast = false, 2000); });
+	}
+	function resultText(item: LineResult, format?: ResultFormat) { return item.type === "success" && item.value !== undefined ? formatResult(item.value, format, item.hasSi) : item.text; }
+	function chooseFormat(index: number, option: FormatOption) {
+		const item = lineResults[index]; if (item.value === undefined || !item.valueKind) return;
+		lineFormats = { ...lineFormats, [index + 1]: { lineText: lines[index], kind: item.valueKind, format: { name: option.name, precision: option.precisionMode === "decimalPlaces" ? 4 : option.precisionMode ? 6 : undefined } } };
+		persistFormats();
+	}
+	function choosePrecision(index: number, precision: number) {
+		const stored = lineFormats[index + 1]; if (!stored) return;
+		lineFormats = { ...lineFormats, [index + 1]: { ...stored, format: { ...stored.format, precision } } }; persistFormats();
+	}
+	function measureResult(node: HTMLElement, index: number) {
+		const update = () => { const next = resultHeights.slice(); next[index] = Math.max(24, Math.ceil(node.getBoundingClientRect().height)); resultHeights = next; queueMicrotask(dispatchEditorUi); };
+		const observer = new ResizeObserver(update); observer.observe(node); update();
+		return { update(nextIndex: number) { index = nextIndex; update(); }, destroy() { observer.disconnect(); } };
 	}
 
 	onMount(() => {
-		const saved = typeof localStorage !== "undefined" ? localStorage.getItem(storageKey) : null;
-		if (saved !== null) {
-			source = saved;
-		}
-		queueMicrotask(() => {
-			handleScroll();
-			updateCursor();
+		const saved = localStorage.getItem(storageKey); source = saved !== null ? saved : source;
+		try {
+			const persisted = JSON.parse(localStorage.getItem(formatStorageKey) ?? "null");
+			if (persisted?.formats) { lineFormats = persisted.formats; if (typeof persisted.source === "string" && persisted.source !== source) reconcileFormats(persisted.source, source); }
+		} catch { localStorage.removeItem(formatStorageKey); }
+		editorView = new EditorView({
+			parent: editorHost,
+			state: EditorState.create({ doc: source, extensions: [basicSetup, editorUiField, syntaxDecorations, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, ".cm-line": { minHeight: "24px", lineHeight: "24px", padding: "0 16px" }, ".cm-content": { padding: "16px 0" }, ".cm-gutters": { backgroundColor: "color-mix(in oklab, var(--color-base-200) 40%, transparent)", borderRight: "1px solid var(--color-base-300)" }, ".cm-activeLine": { backgroundColor: "color-mix(in oklab, var(--color-primary) 10%, transparent)" }, ".cm-activeLineGutter": { backgroundColor: "color-mix(in oklab, var(--color-primary) 12%, transparent)" }, ".cm-result-hover-line": { backgroundColor: "color-mix(in oklab, var(--color-primary) 22%, transparent) !important", boxShadow: "inset 3px 0 var(--color-primary)" }, ".cm-error-line": { backgroundColor: "color-mix(in oklab, var(--color-error) 18%, transparent)", boxShadow: "inset 3px 0 var(--color-error)" } }) , EditorView.updateListener.of((update) => {
+				if (update.docChanged) { const next = update.state.doc.toString(); reconcileFormats(source, next); source = next; localStorage.setItem(storageKey, source); persistFormats(); }
+				if (update.docChanged || update.selectionSet) activeLine = update.state.doc.lineAt(update.state.selection.main.head).number;
+				if (update.selectionSet) queueMicrotask(dispatchEditorUi);
+			})] }),
 		});
+		const syncScroll = () => { if (resultsPanel && editorView) resultsPanel.scrollTop = editorView.scrollDOM.scrollTop; };
+		editorView.scrollDOM.addEventListener("scroll", syncScroll, { passive: true });
+		queueMicrotask(dispatchEditorUi);
+		return () => editorView?.destroy();
 	});
 
 	$: {
-		const result = evaluateSource(source);
-		lines = result.lines;
-		lineResults = result.lineResults;
-		variableSnapshot = result.variableSnapshot;
+		const result = evaluateSource(source); lines = result.lines; lineResults = result.lineResults; variableSnapshot = result.variableSnapshot;
+		cleanFormats();
+		queueMicrotask(dispatchEditorUi);
 	}
 </script>
 
-<svelte:window on:keydown={handleWindowKeydown} />
+<svelte:window on:keydown={handleWindowKeydown} on:click={handleWindowClick} />
 
 <div class="mx-auto flex h-dvh w-full max-w-7xl flex-col gap-4 overflow-hidden px-4 py-4 md:px-6 lg:py-6">
 	<header class="flex items-center justify-between rounded-box border border-base-300 bg-base-200 px-6 py-3 shadow-sm">
@@ -227,38 +182,48 @@
 				</div>
 			</div>
 
-			<div class="grid min-h-0 flex-1 grid-cols-[48px_minmax(0,1fr)_minmax(160px,280px)] grid-rows-[1fr] overflow-hidden font-mono text-[13px] leading-6">
-				<!-- 行号 -->
-				<div bind:this={lineNumbers} class="select-none overflow-hidden border-r border-base-300 bg-base-200/40 px-2 py-4 text-right text-base-content/30">
-					{#each lines as _, index}
-						<div class="h-6">{index + 1}</div>
-					{/each}
-				</div>
+			<div class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(180px,320px)] overflow-hidden font-mono text-[13px] leading-6">
+				<div bind:this={editorHost} class="min-h-0 overflow-hidden bg-base-100" aria-label="公式编辑器"></div>
 
-				<!-- 核心编辑器容器 -->
-				<div class="relative overflow-hidden bg-base-100">
-					<div bind:this={backdrop} class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre px-4 py-4 text-transparent transition-none" aria-hidden="true">
-						{@html highlight(source, cursorPosition, matchedBracketIndex)}
-					</div>
-
-					<textarea
-						bind:this={textarea}
-						bind:value={source}
-						class="absolute inset-0 z-10 block h-full w-full resize-none overflow-auto border-none bg-transparent px-4 py-4 text-transparent caret-primary outline-none"
-						placeholder="输入公式，例如：&#10;a = 12&#10;b = a * 3&#10;sqrt(b)"
-						spellcheck="false"
-						on:input={handleInput}
-						on:scroll={handleScroll}
-						on:click={updateCursor}
-						on:keyup={updateCursor}
-					></textarea>
-				</div>
-
-				<div bind:this={resultsPanel} class="overflow-hidden border-l border-base-300 bg-base-200/20 px-4 py-4">
-					{#each lineResults as item}
-						<div class:text-error={item.type === 'error'} class:text-success={item.type === 'success'} class:font-bold={item.varName} class="h-6 overflow-hidden text-ellipsis whitespace-nowrap opacity-90 hover:opacity-100" title={item.text}>
-							{#if item.preview?.type === 'color'}<span class="mr-1 inline-block h-3 w-3 rounded-sm border border-base-content/20 align-middle" style:background={item.preview.css} aria-label="颜色预览"></span>{/if}
-							{item.text || ' '}
+				<div bind:this={resultsPanel} class="relative overflow-auto border-l border-base-300 bg-base-200/20 py-4" on:scroll={syncResultsScroll}>
+					{#each lineResults as item, index}
+						<div
+							use:measureResult={index}
+							class:result-active={activeLine === index + 1}
+							class:result-hover={hoverLine === index + 1}
+							class:result-error={item.type === "error"}
+							class="result-row relative min-h-6 px-4"
+							data-result-line={index + 1}
+							on:mouseenter={() => { hoverLine = index + 1; dispatchEditorUi(); }}
+							on:mouseleave={() => { hoverLine = null; dispatchEditorUi(); }}
+						>
+							{#if item.type === "success" && item.value !== undefined}
+								<button
+									type="button"
+									class="block min-h-6 w-full overflow-hidden text-left text-success outline-none"
+									class:cursor-pointer={formatOptions(item.value).length > 0}
+									on:click={(event) => toggleFormatMenu(event, index)}
+									aria-haspopup={formatOptions(item.value).length ? "menu" : undefined}
+									aria-expanded={formatMenuLine === index + 1}
+									on:click|stopPropagation
+									title={resultText(item, lineFormats[index + 1]?.format)}
+								>
+									{#if item.preview?.type === "color"}<span class="mr-1 inline-block h-3 w-3 rounded-sm border border-base-content/20 align-middle" style:background={item.preview.css} aria-label="颜色预览"></span>{/if}
+									{#if isMatrix(item.value)}
+										<div class="matrix-result inline-flex max-w-full items-stretch align-top">
+											<span class="matrix-bracket matrix-bracket-left" aria-hidden="true"></span>
+											<div class="matrix-values max-h-[304px] min-w-0 overflow-auto px-1.5">
+												<table class="w-max border-separate border-spacing-x-3 border-spacing-y-0.5 text-right">
+													<tbody>{#each item.value.rows as row}<tr>{#each row as cell}<td class="whitespace-nowrap">{formatValue(cell)}</td>{/each}</tr>{/each}</tbody>
+												</table>
+											</div>
+											<span class="matrix-bracket matrix-bracket-right" aria-hidden="true"></span>
+										</div>
+									{:else}{resultText(item, lineFormats[index + 1]?.format)}{/if}
+								</button>
+							{:else if item.type === "error"}
+								<div class="min-h-6 overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-error" title={item.text}>{item.text}</div>
+							{:else}<div class="h-6">&nbsp;</div>{/if}
 						</div>
 					{/each}
 				</div>
@@ -298,6 +263,35 @@
 		</div>
 	</section>
 </div>
+
+{#if formatMenuLine !== null && lineResults[formatMenuLine - 1]?.value !== undefined}
+	{@const menuIndex = formatMenuLine - 1}
+	{@const menuItem = lineResults[menuIndex]}
+	{@const menuOptions = formatOptions(menuItem.value)}
+	{@const selectedOption = menuOptions.find((option) => option.name === lineFormats[formatMenuLine!]?.format.name)}
+	<div
+		class="format-menu fixed z-[100] w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-2xl"
+		style:top={`${formatMenuPosition.top}px`}
+		style:left={`${formatMenuPosition.left}px`}
+		role="menu"
+		on:click|stopPropagation
+	>
+		<div class="mb-1 px-2 text-[11px] font-bold uppercase tracking-wide text-base-content/50">结果格式</div>
+		{#each menuOptions as option}
+			<button type="button" class:format-selected={(lineFormats[formatMenuLine!]?.format.name ?? "default") === option.name} class="block w-full rounded px-2 py-1 text-left hover:bg-primary/15" role="menuitem" on:click={() => chooseFormat(menuIndex, option)}>{option.label}</button>
+		{/each}
+		{#if selectedOption?.precisionMode}
+			<div class="mt-2 border-t border-base-300 pt-2">
+				<div class="px-2 text-[11px] text-base-content/50">{selectedOption.precisionMode === "decimalPlaces" ? "小数位" : "有效位"}</div>
+				<div class="mt-1 flex flex-wrap gap-1 px-2">
+					{#each selectedOption.precisionMode === "decimalPlaces" ? [0,2,4,6,8,12] : [3,4,6,8,12,16,34] as precision}
+						<button type="button" class:btn-primary={lineFormats[formatMenuLine!]?.format.precision === precision} class="btn btn-xs" on:click={() => choosePrecision(menuIndex, precision)}>{precision}</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+	</div>
+{/if}
 
 <!-- 帮助弹窗 Modal -->
 {#if helpDialogOpen}
@@ -403,6 +397,24 @@
 	:global(.token-operator) { color: #ec4899; font-weight: bold; }
 	:global(.token-bracket) { color: #6366f1; }
 	:global(.token-variable) { color: #0ea5e9; }
+	:global(.token-unknown) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
+	:global(.token-error) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
+
+	.result-row { transition: background-color 120ms ease, box-shadow 120ms ease, filter 120ms ease; }
+	.result-active { background: color-mix(in oklab, var(--color-primary) 10%, transparent); }
+	.result-hover { background: color-mix(in oklab, var(--color-primary) 24%, transparent); box-shadow: inset 3px 0 var(--color-primary); filter: brightness(1.15); }
+	.result-error { background: color-mix(in oklab, var(--color-error) 16%, transparent); }
+	.format-selected { background: color-mix(in oklab, var(--color-primary) 20%, transparent); color: var(--color-primary); font-weight: 700; }
+	.matrix-result { width: max-content; }
+	.matrix-bracket { width: 0.4rem; flex: 0 0 0.4rem; border-block: 2px solid currentColor; }
+	.matrix-bracket-left { border-left: 2px solid currentColor; }
+	.matrix-bracket-right { border-right: 2px solid currentColor; }
+	:global(.cm-editor.cm-focused) { outline: none; }
+	:global(.cm-cursor), :global(.cm-dropCursor) { border-left: 2px solid var(--color-primary) !important; }
+	:global(.cm-selectionBackground) { background: color-mix(in oklab, var(--color-primary) 55%, transparent) !important; }
+	:global(.cm-line-spacer-active) { background: color-mix(in oklab, var(--color-primary) 10%, transparent); }
+	:global(.cm-line-spacer-hover) { background: color-mix(in oklab, var(--color-primary) 22%, transparent); box-shadow: inset 3px 0 var(--color-primary); }
+	:global(.cm-line-spacer-error) { background: color-mix(in oklab, var(--color-error) 18%, transparent); box-shadow: inset 3px 0 var(--color-error); }
 
 	div::-webkit-scrollbar {
 		display: none;
@@ -412,10 +424,6 @@
 		scrollbar-width: none;
 	}
 
-	textarea {
-		white-space: pre;
-		word-wrap: normal;
-	}
 
 	.toast {
 		animation: toast-in 0.3s ease-out;

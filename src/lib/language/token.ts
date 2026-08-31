@@ -1,7 +1,7 @@
 export type TokenKind =
 	| "number" | "string" | "identifier" | "comment" | "operator"
 	| "leftParen" | "rightParen" | "leftBracket" | "rightBracket"
-	| "comma" | "question" | "colon" | "eof";
+	| "comma" | "question" | "colon" | "unknown" | "unterminatedString" | "eof";
 
 export interface SourcePosition {
 	offset: number;

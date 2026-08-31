@@ -18,6 +18,7 @@
 |---|---|---|
 | 框架 | Astro | ^5.18.1 |
 | UI 组件 | Svelte | ^5.55.2 |
+| 编辑器 | CodeMirror 6 | codemirror ^6.0.2 |
 | 样式 | Tailwind CSS v4 + DaisyUI v5 | @tailwindcss/vite ^4.2.2, daisyui ^5.5.19 |
 | 语言 | TypeScript | ^5.9.3 |
 | 高精度数值 | decimal.js | ^10.6.0 |
@@ -56,6 +57,8 @@ calcuko/
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 示例公式和帮助弹窗元数据
     │   ├── evaluator.ts              # ⭐ 内置注册、逐行求值和统一 formatter
+    │   ├── resultFormatting.ts        # 行级结果格式选项、精度与显示转换
+    │   ├── editorExtensions.ts         # CodeMirror 高亮、错误/hover 行与高度 spacer
     │   └── highlight.ts              # 语法高亮 tokenizer
     ├── pages/
     │   └── index.astro               # 唯一页面，加载 FormulaCalculator
@@ -70,6 +73,9 @@ calcuko/
 - `index.astro` → `Layout.astro`（壳）→ `FormulaCalculator.svelte`（`client:load` 客户端渲染）
 
 ### FormulaCalculator.svelte 核心逻辑
+- **编辑器内核**：CodeMirror 6 提供输入、选区、历史和行号；自定义装饰复用语言 tokenizer，并以 spacer 匹配可变高度结果行
+- **光标与行高**：CodeMirror 光标显式使用主题主色；多行结果通过实测结果高度创建 block spacer，使下一源码行与下一结果行保持像素级对齐
+- **行联动**：当前源码行与对应结果同步高亮，hover 结果时强化结果样式并高亮左侧源码行；两栏双向同步滚动
 - **Header 图标**：使用 `<img src="/favicon.svg">` 引用 `public/favicon.svg` 作为品牌 logo，替代之前的内联计算器 SVG
 - **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
 - **实现方式**：表达式经 tokenizer、Pratt parser 生成 AST，再由受控解释器在显式 scope 中执行，不调用 JavaScript 动态求值
@@ -78,11 +84,11 @@ calcuko/
 - **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
 - **Tokenizer**：`src/lib/language/tokenizer.ts` 生成带行列与源码区间的 token；字符串内容不会被空格、进制或注释规则改写，只有忽略前导空白后以 `//` 开头的整行才是注释
 - **Parser**：`src/lib/language/parser.ts` 使用 Pratt 算法生成 AST，集中定义操作符优先级和结合性，支持赋值、调用、数组、条件表达式与隐式乘法
-- **用户函数**：支持 `def f(a,b)=expr` 与 `x => expr` / `(a,b) => expr`，函数使用词法闭包、支持递归并严格校验参数数量
+- **用户函数**：支持 `fn f(a,b)=expr` 与 `x => expr` / `(a,b) => expr`，函数使用词法闭包、支持递归并严格校验参数数量
 - **解构赋值**：支持 `[a,b,c]=[10,20,30]`；右侧必须是同长度数组，校验完成后才原子写入 scope
 - **范围**：`start..stop` 为不含终点范围，`start..=stop` 包含终点，`range(start,stop,step?)` 支持显式步长；单次最多生成 10,000 项
 - **数组运算**：算术操作符支持递归逐元素运算、标量广播及同形校验；内置聚合、平均、映射、过滤、排序、反转和去重函数
-- **矩阵**：`matrix(rows)` 将矩形二维数值数组转为独立 Matrix 类型，支持矩阵/标量运算、矩阵乘法与 `det()` 精确行列式
+- **矩阵**：`matrix(rows)` 将矩形二维数值数组转为独立 Matrix 类型，`row(values...)` 和 `col(values...)` 分别构造单行、单列矩阵；支持矩阵/标量运算、矩阵乘法与 `det()` 精确行列式；结果栏默认以内容自适应宽度、左右方括号包围且最多 12 行的可滚动二维表展示
 - **位运算函数**：所有函数接收显式正位宽，支持任意精度掩码、旋转、bit/byte/nibble 翻转、bit count、奇偶校验及 pack/unpack
 - **数论函数**：BigInt 原生实现 `isPrime`、`primeFact`、`gcd`、`lcm`，覆盖负数、0 和数组/可变参数输入
 - **ECC**：`eccEncode`/`eccDecode` 实现 1–4096 数据位的 Hamming SECDED；解码以 RuntimeRecord 区分 clean、corrected、double-error
@@ -99,9 +105,10 @@ calcuko/
 - **进制结果展示**：`formatValue()` 检测 `isRadixString()` 判断字符串是否为进制表示，对数字部分调用 `formatRadixString()` 进行空格分组；分组结果也显示在变量快照中
 - **SI 词缀支持**：数字 token 直接支持 T/G/M/k/m/u/n/p，并在该行结果中使用统一 Decimal formatter 输出合适词缀
 - **隐式乘法**：parser 将相邻的数值、标识符与括号按语法规则解析为乘法，例如 `2PI`、`3R1`
-- **结果格式化**：BigInt、Decimal、Rational 与数组通过统一 formatter 显示；含 SI 词缀的表达式以合适的 SI 词缀输出
+- **结果格式化**：结果栏只显示值；BigInt、Decimal、Rational 与颜色支持按行选择显示格式和精度，配置随未改内容迁移并持久化到 localStorage，空行、错误或运行时类型变化时自动清除
+- **格式菜单浮层**：菜单渲染为脱离编辑器与结果滚动容器的 fixed 顶层浮层，避免 CodeMirror stacking context 和裁剪冲突
 - **数值模型**：整数为任意精度 BigInt，小数使用 34 位有效数字且 half-even 舍入的 Decimal，`a$b` 为自动约分的精确 Rational；混合运算按 BigInt → Rational → Decimal 提升
-- **语法高亮**：`src/lib/highlight.ts` 直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符、括号和变量，避免高亮与求值语法漂移
+- **语法高亮**：`src/lib/highlight.ts` 直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符（含逗号等标点）、括号和变量；高亮模式按行恢复词法错误，以错误样式显示未知字符和未闭合字符串并继续着色，求值模式仍严格报错
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
 - **帮助弹窗**：Header 中的「帮助」按钮展示基本语法、函数和常量元数据，支持 Escape 关闭、关闭按钮标签及打开/关闭焦点恢复
 - **编辑器标题栏操作**：载入示例和清空均先确认、写入同一持久化 key，并提供单步撤销
@@ -125,6 +132,8 @@ calcuko/
 - **主色调**：`--color-primary: #fb7185`（玫瑰粉）
 - **语法高亮颜色**（在 FormulaCalculator.svelte `<style>` 中）：
   - 注释 `#94a3b8`（灰）、数值 `#f59e0b`（琥珀）、运算符 `#ec4899`（粉）、括号 `#6366f1`（靛蓝）、变量 `#0ea5e9`（天蓝）
+- **编辑器选区**：文本选中背景使用半透明主题主色（玫瑰粉），保持高亮叠层文字可见
+- **错误行标识**：编辑器以半透明错误色背景和左侧红色边线标记求值失败的整行，未知字符使用红色波浪下划线显示
 - **Tailwind v4 语法**：使用 `@import "tailwindcss"` 和 `@plugin "daisyui"` 而非旧版 `@tailwind` 指令
 - **字体大小**：在 `@theme` 块中自定义了 `--text-xs` 到 `--text-6xl`
 
@@ -150,7 +159,7 @@ npm run test:e2e     # 构建后运行 Playwright 冒烟测试
 
 1. **表达式边界**：求值器只执行 AST 支持的语法和注册到 scope 的函数，不开放浏览器全局对象
 2. **Svelte 4 语法**：组件使用 `on:click`、`$: reactive` 等 Svelte 4 语法（非 Svelte 5 runes）
-3. **模块拆分**：核心逻辑已拆分为 `src/lib/` 下的 `types.ts`（类型）、`constants.ts`（常量）、`evaluator.ts`（求值引擎）、`highlight.ts`（语法高亮），`FormulaCalculator.svelte` 仅负责 UI 和状态管理（约 260 行）
+3. **模块拆分**：核心逻辑已拆分为 `src/lib/` 下的 `types.ts`（类型）、`constants.ts`（常量）、`evaluator.ts`（求值引擎）、`highlight.ts`（语法高亮），`FormulaCalculator.svelte` 仅负责 UI 和状态管理（UI、CodeMirror 和交互状态）
 4. **测试与 CI**：Vitest 负责单元测试，Playwright 负责生产预览冒烟测试；GitHub Actions 对 `dev`/`main` 的提交和 PR 执行完整验证
 
 ---

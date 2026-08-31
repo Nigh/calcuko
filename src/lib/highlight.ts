@@ -7,14 +7,17 @@ function esc(s: string): string {
 
 const tokenClass = (token: Token): string | undefined => {
 	if (["comment", "number", "string", "operator"].includes(token.kind)) return token.kind;
+	if (["comma", "question", "colon"].includes(token.kind)) return "operator";
 	if (token.kind === "identifier") return "variable";
+	if (token.kind === "unknown") return "unknown";
+	if (token.kind === "unterminatedString") return "error";
 	if (["leftParen", "rightParen", "leftBracket", "rightBracket"].includes(token.kind)) return "bracket";
 	return undefined;
 };
 
 export function highlight(text: string, cursorPosition: number, matchedBracketIndex: number | null): string {
 	let tokens: Token[];
-	try { tokens = tokenize(text).filter((token) => token.kind !== "eof"); }
+	try { tokens = tokenize(text, { tolerant: true }).filter((token) => token.kind !== "eof"); }
 	catch { return esc(text) + "\n"; }
 
 	let result = "";
