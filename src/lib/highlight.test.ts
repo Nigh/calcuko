@@ -6,6 +6,12 @@ describe("highlight", () => {
 		expect(highlight("pow(2, 3)", 0, null)).toContain('<span class="token-operator">,<\/span>');
 	});
 
+	it("distinguishes built-in and user-defined function calls", () => {
+		const html = highlight("pow(2, 3)\nfn double(x)=x*2\ndouble(4)", 0, null);
+		expect(html).toContain('<span class="token-builtin-function">pow<\/span>');
+		expect(html.match(/class="token-user-function">double<\/span>/g)).toHaveLength(2);
+	});
+
 	it("keeps highlighting tokens after an unknown character", () => {
 		const html = highlight("a = 1 # @ b = 2", 0, null);
 		expect(html).toContain('<span class="token-variable">a<\/span>');
