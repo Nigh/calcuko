@@ -60,6 +60,7 @@ calcuko/
     │   ├── resultFormatting.ts        # 行级结果格式选项、精度与显示转换
     │   ├── editorExtensions.ts         # CodeMirror 高亮、错误/hover 行与高度 spacer
     │   └── highlight.ts              # 语法高亮 tokenizer
+    │   ├── syntaxClassification.ts   # CodeMirror/HTML 共享 token 分类（含内置与自定义函数）
     ├── pages/
     │   └── index.astro               # 唯一页面，加载 FormulaCalculator
     └── styles/
@@ -108,7 +109,7 @@ calcuko/
 - **结果格式化**：结果栏只显示值；BigInt、Decimal、Rational 与颜色支持按行选择显示格式和精度，配置随未改内容迁移并持久化到 localStorage，空行、错误或运行时类型变化时自动清除
 - **格式菜单浮层**：菜单渲染为脱离编辑器与结果滚动容器的 fixed 顶层浮层，避免 CodeMirror stacking context 和裁剪冲突
 - **数值模型**：整数为任意精度 BigInt，小数使用 34 位有效数字且 half-even 舍入的 Decimal，`a$b` 为自动约分的精确 Rational；混合运算按 BigInt → Rational → Decimal 提升
-- **语法高亮**：`src/lib/highlight.ts` 直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符（含逗号等标点）、括号和变量；高亮模式按行恢复词法错误，以错误样式显示未知字符和未闭合字符串并继续着色，求值模式仍严格报错
+- **语法高亮**：`src/lib/highlight.ts` 与 CodeMirror 装饰层直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符（含逗号等标点）、括号和变量，并以不同颜色区分内置函数与自定义函数；高亮模式按行恢复词法错误，以错误样式显示未知字符和未闭合字符串并继续着色，求值模式仍严格报错
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
 - **帮助弹窗**：Header 中的「帮助」按钮展示基本语法、函数和常量元数据，支持 Escape 关闭、关闭按钮标签及打开/关闭焦点恢复
 - **编辑器标题栏操作**：载入示例和清空均先确认、写入同一持久化 key，并提供单步撤销
@@ -132,6 +133,7 @@ calcuko/
 - **主色调**：`--color-primary: #fb7185`（玫瑰粉）
 - **语法高亮颜色**（在 FormulaCalculator.svelte `<style>` 中）：
   - 注释 `#94a3b8`（灰）、数值 `#f59e0b`（琥珀）、运算符 `#ec4899`（粉）、括号 `#6366f1`（靛蓝）、变量 `#0ea5e9`（天蓝）
+  - 内置函数 `#a78bfa`（淡紫）、自定义函数 `#22d3ee`（青色）
 - **编辑器选区**：文本选中背景使用半透明主题主色（玫瑰粉），保持高亮叠层文字可见
 - **错误行标识**：编辑器以半透明错误色背景和左侧红色边线标记求值失败的整行，未知字符使用红色波浪下划线显示
 - **Tailwind v4 语法**：使用 `@import "tailwindcss"` 和 `@plugin "daisyui"` 而非旧版 `@tailwind` 指令

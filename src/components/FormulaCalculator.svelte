@@ -397,6 +397,8 @@
 	:global(.token-operator) { color: #ec4899; font-weight: bold; }
 	:global(.token-bracket) { color: #6366f1; }
 	:global(.token-variable) { color: #0ea5e9; }
+	:global(.token-builtin-function) { color: #a78bfa; font-weight: 600; }
+	:global(.token-user-function) { color: #22d3ee; font-weight: 600; }
 	:global(.token-unknown) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
 	:global(.token-error) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
 
@@ -405,7 +407,7 @@
 	.result-hover { background: color-mix(in oklab, var(--color-primary) 24%, transparent); box-shadow: inset 3px 0 var(--color-primary); filter: brightness(1.15); }
 	.result-error { background: color-mix(in oklab, var(--color-error) 16%, transparent); }
 	.format-selected { background: color-mix(in oklab, var(--color-primary) 20%, transparent); color: var(--color-primary); font-weight: 700; }
-	.matrix-result { width: max-content; }
+	.matrix-result { width: max-content; padding-block: 0.125rem; }
 	.matrix-bracket { width: 0.4rem; flex: 0 0 0.4rem; border-block: 2px solid currentColor; }
 	.matrix-bracket-left { border-left: 2px solid currentColor; }
 	.matrix-bracket-right { border-right: 2px solid currentColor; }
