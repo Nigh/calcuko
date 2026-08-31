@@ -14,8 +14,11 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^7.2.5",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.9",
     "@tailwindcss/vite": "^4.2.2",
     "astro": "^5.18.1",
+    "codemirror": "^6.0.2",
     "daisyui": "^5.5.19",
     "decimal.js": "^10.6.0",
     "svelte": "^5.55.2",
