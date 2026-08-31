@@ -24,6 +24,7 @@ Calcuko 是一款专为工程师、学生和开发者设计的轻量级、响应
 - **💬 行注释支持**：忽略前导空白后以 `//` 开头的整行是注释；表达式中的 `//` 表示整数除法。
 - **🛡️ 受控求值**：公式由 tokenizer、AST parser 和解释器执行，不直接运行 JavaScript 代码。
 - **🔢 高精度数值**：整数为任意精度 BigInt，小数使用 34 位 Decimal；`2$3` 表示可精确运算并自动约分的分数。
+- **📊 可读结果**：结果栏仅显示值，矩阵使用二维表格；单击数值或颜色结果可选择进制、科学计数、SI、精度或色彩空间，格式会本地保存。
 
 ## 🚀 快速上手
 
@@ -59,7 +60,7 @@ diagonal = sqrt(pow(width, 2) + pow(height, 2))
 
 ### 4. 自定义函数与 Lambda
 ```javascript
-def square(x) = x**2
+fn square(x) = x**2
 square(12)
 
 scale = (value, factor) => value * factor
@@ -72,7 +73,7 @@ scale(10, 3)
 
 数组支持递归逐元素运算与标量广播，例如 `[1,2,3]*4`；内置 `sum`、`ave`、`map`、`filter`、`aggregate`、`sort`、`reverse` 和 `unique`。
 
-`matrix([[1,2],[3,4]])` 构造独立矩阵值，支持矩阵/标量运算、矩阵乘法以及 `det()` 精确行列式。
+`matrix([[1,2],[3,4]])` 构造独立矩阵值，支持矩阵/标量运算、矩阵乘法以及 `det()` 精确行列式。单行和单列矩阵可使用可变参数语法糖：`row(1,2,3)` 等价于 `matrix([[1,2,3]])`，`col(1,2,3)` 等价于 `matrix([[1],[2],[3]])`。
 
 ## 📚 内置函数参考
 
@@ -82,7 +83,31 @@ Calcuko 内置了标准 Math 对象的所有常量和函数：
 
 工程函数还包括任意位宽 bit 操作，以及 `eccEncode(width,value)` / `eccDecode(width,encoded)` Hamming SECDED 编解码。
 
-颜色函数支持 RGB（0–255）、HSL/HSV（H 0–360，其余 0–100）、BT.601 YUV、Web Hex 和 RGB565；Color 结果会显示颜色预览。
+### 颜色操作
+
+颜色函数支持 RGB（0–255）、HSL/HSV（H 为 0–360，其他通道为 0–100）、BT.601 YUV（各通道 0–255）、Web Hex 和 RGB565。颜色结果会在结果栏和变量快照中显示预览色块。
+
+```javascript
+red = rgb(255, 0, 0)
+accent = hsl(340, 80, 65)
+vivid = hsv(210, 90, 80)
+video = yuv(128, 128, 128)
+brand = hexColor("#FB7185")
+packed = rgb565(0xF800)
+```
+
+使用转换函数可在颜色空间或输出格式之间转换：
+
+```javascript
+toRgb(brand)
+toHsl(brand)
+toHsv(brand)
+toYuv(brand)
+toRgb565(brand)
+toHexColor(brand)
+```
+
+`hexColor` 接受 `#RGB` 或 `#RRGGBB` 字符串；`rgb565` 接受 0–65535 的整数。转换函数的参数必须是颜色值。
 
 统计函数提供总体/样本方差和标准差、三类平均值与中位数；`rand`、`randInt` 使用 Web Crypto。
 
