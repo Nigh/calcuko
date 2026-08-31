@@ -6,7 +6,7 @@ describe("destructuring assignment", () => {
 	it("parses and assigns equal-length arrays", () => {
 		expect(parse("[a,b,c] = [10,20,30]")).toMatchObject({ kind: "destructuringAssignment", names: ["a", "b", "c"] });
 		const result = evaluateSource("[a,b,c] = [10,20,30]\na+b+c");
-		expect(result.lineResults.map((line) => line.text)).toEqual(["[a, b, c] = [10, 20, 30]", "60"]);
+		expect(result.lineResults.map((line) => line.text)).toEqual(["[10, 20, 30]", "60"]);
 		expect(result.variableSnapshot).toMatchObject({ a: 10n, b: 20n, c: 30n });
 	});
 

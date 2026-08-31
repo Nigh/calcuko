@@ -22,9 +22,9 @@ export class Parser {
 	parseStatement(): Statement {
 		while (this.peek().kind === "comment") this.advance();
 		if (this.peek().kind === "eof") return { kind: "empty", span: this.peek().span };
-		if (this.peek().kind === "identifier" && this.peek().lexeme === "def") {
+		if (this.peek().kind === "identifier" && this.peek().lexeme === "fn") {
 			const start = this.advance();
-			const name = this.expect("identifier", "def 后需要函数名");
+			const name = this.expect("identifier", "fn 后需要函数名");
 			this.expect("leftParen", "函数名后需要参数列表");
 			const parameters = this.parseParameters();
 			this.expectOperator("=", "函数定义缺少等号");

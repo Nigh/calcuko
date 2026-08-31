@@ -31,6 +31,8 @@ export const mathFunctions: Record<string, string> = {
 	sort: "sort(array, fn?) — 排序数组",
 	unique: "unique(array) — 数组去重",
 	matrix: "matrix(rows) — 从二维数组构造矩阵",
+	row: "row(values...) — 构造单行矩阵",
+	col: "col(values...) — 构造单列矩阵",
 	det: "det(matrix) — 精确计算方阵行列式",
 	isPrime: "isPrime(n) — 判断 BigInt 是否为素数",
 	primeFact: "primeFact(n) — 质因数分解",

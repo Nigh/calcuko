@@ -1,5 +1,5 @@
 import type { LineResult } from "./types";
-import { evaluateStatement, isRuntimeRecord, isUserFunction, type RuntimeScope } from "./language/interpreter";
+import { evaluateStatement, isRuntimeRecord, isUserFunction, type RuntimeScope, type RuntimeValue } from "./language/interpreter";
 import { parse } from "./language/parser";
 import { LanguageError } from "./language/token";
 import Decimal from "decimal.js";
@@ -126,6 +126,8 @@ export const mathContext: RuntimeScope = {
 		if (!Array.isArray(rows)) throw new Error("matrix() 需要二维数组");
 		return new Matrix(rows);
 	},
+	row: (...values: RuntimeValue[]) => new Matrix([values]),
+	col: (...values: RuntimeValue[]) => new Matrix(values.map((value) => [value])),
 	det: (value: unknown) => {
 		if (!isMatrix(value)) throw new Error("det() 需要 Matrix 值");
 		return determinant(value);
@@ -141,6 +143,15 @@ export const mathContext: RuntimeScope = {
 	hex: toHex,
 	bin: toBin,
 	oct: toOct,
+};
+
+const resultValueKind = (value: unknown): LineResult["valueKind"] => {
+	if (typeof value === "bigint") return "bigint";
+	if (value instanceof Decimal) return "decimal";
+	if (value instanceof Rational) return "rational";
+	if (isColorValue(value)) return "color";
+	if (isMatrix(value)) return "matrix";
+	return "other";
 };
 
 export function evaluateSource(input: string): { lines: string[]; lineResults: LineResult[]; variableSnapshot: Record<string, unknown> } {
@@ -159,7 +170,7 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 			const { value, name, names, hasSi } = evaluateStatement(parse(rawLine), scope);
 			if (names) {
 				for (const assignedName of names) nextSnapshot[assignedName] = scope[assignedName];
-				nextLineResults.push({ type: "success", text: `[${names.join(", ")}] = ${formatValue(value)}` });
+				nextLineResults.push({ type: "success", text: formatValue(value), value, valueKind: resultValueKind(value), hasSi });
 				continue;
 			}
 			if (name) {
@@ -167,7 +178,8 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 				const displayValue = hasSi && isNumericValue(value) ? formatNumericWithSi(value) : formatValue(value);
 				nextLineResults.push({ 
 					type: "success", 
-					text: `${name} = ${displayValue}`,
+					text: displayValue,
+					value, valueKind: resultValueKind(value), hasSi,
 					varName: name,
 					preview: isColorValue(value) ? { type: "color", css: value.css } : undefined,
 				});
@@ -176,6 +188,7 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 				nextLineResults.push({ 
 					type: "success", 
 					text: displayValue,
+					value, valueKind: resultValueKind(value), hasSi,
 					preview: isColorValue(value) ? { type: "color", css: value.css } : undefined,
 				});
 			}

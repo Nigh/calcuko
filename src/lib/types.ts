@@ -6,4 +6,7 @@ export type LineResult = {
 	line?: number;
 	column?: number;
 	preview?: { type: "color"; css: string };
+	value?: unknown;
+	valueKind?: "bigint" | "decimal" | "rational" | "color" | "matrix" | "other";
+	hasSi?: boolean;
 };

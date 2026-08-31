@@ -4,7 +4,7 @@ const identStart = /^(?:[\p{ID_Start}$]|\p{Extended_Pictographic})$/u;
 const identContinue = /^(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})$/u;
 const operators = ["**", "//", "==", "!=", ">=", "<=", "&&", "||", "=>", "<<", ">>", "..=", "..", "+", "-", "*", "/", "%", "$", "=", ">", "<", "!", "~", "&", "|", "^"];
 
-export function tokenize(source: string): Token[] {
+export function tokenize(source: string, options: { tolerant?: boolean } = {}): Token[] {
 	const tokens: Token[] = [];
 	let offset = 0;
 	let line = 1;
@@ -41,16 +41,22 @@ export function tokenize(source: string): Token[] {
 			let value = "";
 			let closed = false;
 			while (offset < source.length) {
-				const current = advance();
-				if (current === quote) { closed = true; break; }
+				const current = source[offset];
 				if (current === "\n" || current === "\r") break;
+				advance();
+				if (current === quote) { closed = true; break; }
 				if (current === "\\") {
-					const escaped = advance();
+					const escaped = source[offset];
+					if (escaped === undefined || escaped === "\n" || escaped === "\r") break;
+					advance();
 					const escapes: Record<string, string> = { n: "\n", r: "\r", t: "\t", "\\": "\\", '"': '"', "'": "'" };
 					value += escapes[escaped] ?? escaped;
 				} else value += current;
 			}
-			if (!closed) throw new LanguageError("UNTERMINATED_STRING", "字符串没有结束引号", { start, end: position() });
+			if (!closed) {
+				if (options.tolerant) { add("unterminatedString", start, value); continue; }
+				throw new LanguageError("UNTERMINATED_STRING", "字符串没有结束引号", { start, end: position() });
+			}
 			add("string", start, value);
 			continue;
 		}
@@ -88,6 +94,7 @@ export function tokenize(source: string): Token[] {
 		const op = operators.find((candidate) => source.startsWith(candidate, offset));
 		if (op) { for (let i = 0; i < op.length; i++) advance(); add("operator", start); continue; }
 		advance();
+		if (options.tolerant) { add("unknown", start); continue; }
 		throw new LanguageError("UNEXPECTED_CHARACTER", `无法识别字符“${ch}”`, { start, end: position() });
 	}
 

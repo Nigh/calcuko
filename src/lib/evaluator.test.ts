@@ -8,7 +8,7 @@ describe("legacy evaluator", () => {
 
 	it("evaluates dependent variables", () => {
 		const result = evaluateSource("a = 2\nb = a * 3");
-		expect(result.lineResults.map((line) => line.text)).toEqual(["a = 2", "b = 6"]);
+		expect(result.lineResults.map((line) => line.text)).toEqual(["2", "6"]);
 	});
 
 	it("preserves string whitespace and URL comment markers", () => {
