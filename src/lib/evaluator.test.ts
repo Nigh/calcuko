@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { evaluateSource, expandRadixLiterals } from "./evaluator";
+import { evaluateSource } from "./evaluator";
 
 describe("legacy evaluator", () => {
-	it("preserves decimal fractions while expanding octal literals", () => {
-		expect(expandRadixLiterals("0.00001")).toBe("0.00001");
-		expect(expandRadixLiterals("077")).toBe("63");
+	it("parses decimal fractions and octal literals without rewriting source", () => {
+		expect(evaluateSource("0.00001\n077").lineResults.map((line) => line.text)).toEqual(["0.00001", "63"]);
 	});
 
 	it("evaluates dependent variables", () => {
