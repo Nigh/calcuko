@@ -1,0 +1,78 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const editor = (page: Page) => page.locator(".cm-content");
+const setSource = async (page: Page, source: string) => { await editor(page).fill(source); };
+
+test("evaluates, persists, and restores formulas", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, 'a = 12\nb = a * 3\nurl = "https://example.com/a b"');
+	await expect(page.locator('[data-result-line="2"]')).toContainText("36");
+	await expect(page.locator('[data-result-line="2"]')).not.toContainText("b =");
+	await expect(page.locator('[data-result-line="3"]')).toContainText('"https://example.com/a b"');
+	await page.reload();
+	await expect(editor(page)).toContainText("a = 12");
+});
+
+test("links active and hovered result rows to editor lines", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, "a=1\nb=2\nc=3");
+	await editor(page).press("Control+Home");
+	await editor(page).press("ArrowDown");
+	await expect(page.locator('[data-result-line="2"]')).toHaveClass(/result-active/);
+	await page.locator('[data-result-line="3"]').hover();
+	await expect(page.locator(".cm-line").nth(2)).toHaveClass(/cm-result-hover-line/);
+	await expect(page.locator('[data-result-line="3"]')).toHaveClass(/result-hover/);
+});
+
+test("shows a visible themed editor cursor", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, "value=42");
+	await editor(page).click();
+	const cursor = page.locator(".cm-cursor").first();
+	await expect(cursor).toBeVisible();
+	await expect(cursor).toHaveCSS("border-left-color", "rgb(251, 113, 133)");
+});
+
+test("shows matrices, errors, and color previews", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, 'missing\nmatrix([[1,2],[3,4]])\nrgb(255,0,0)');
+	await expect(page.getByText(/第 1 行，第 1 列/)).toBeVisible();
+	await expect(page.locator('[data-result-line="2"] table tr')).toHaveCount(2);
+	await expect(page.locator('[data-result-line="2"] table tr').first().locator("td")).toHaveCount(2);
+	await expect(page.locator('[data-result-line="2"] .matrix-bracket')).toHaveCount(2);
+	const matrixWidth = await page.locator('[data-result-line="2"] .matrix-result').evaluate((element) => element.getBoundingClientRect().width);
+	const resultWidth = await page.locator('[data-result-line="2"]').evaluate((element) => element.getBoundingClientRect().width);
+	expect(matrixWidth).toBeLessThan(resultWidth);
+	const editorLines = page.locator(".cm-line");
+	const sourcePitch = await editorLines.nth(2).evaluate((line, previous) => line.getBoundingClientRect().top - (previous as Element).getBoundingClientRect().top, await editorLines.nth(1).elementHandle());
+	const resultRows = page.locator("[data-result-line]");
+	const resultPitch = await resultRows.nth(2).evaluate((row, previous) => row.getBoundingClientRect().top - (previous as Element).getBoundingClientRect().top, await resultRows.nth(1).elementHandle());
+	expect(Math.abs(sourcePitch - resultPitch)).toBeLessThanOrEqual(1);
+	await expect(page.getByLabel("颜色预览").first()).toBeVisible();
+});
+
+test("formats results and restores the line format after reload", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, "value=255");
+	await page.locator('[data-result-line="1"] button').first().click();
+	await page.getByRole("menuitem", { name: "十六进制" }).click();
+	await expect.poll(() => page.evaluate(() => localStorage.getItem("calcuko-result-formats"))).toContain('"name":"hex"');
+	await expect(page.locator('[data-result-line="1"]')).toContainText("0xFF");
+	await page.reload();
+	await expect(page.locator('[data-result-line="1"]')).toContainText("0xFF");
+	await setSource(page, 'other=1\nvalue=255');
+	await expect(page.locator('[data-result-line="2"]')).toContainText("0xFF");
+	await setSource(page, 'other=1\nvalue="text"');
+	await expect(page.locator('[data-result-line="2"]')).toContainText('"text"');
+	await expect.poll(() => page.evaluate(() => localStorage.getItem("calcuko-result-formats"))).not.toContain('"name":"hex"');
+});
+
+test("confirms clear and supports undo", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, "answer = 42");
+	page.once("dialog", (dialog) => dialog.accept());
+	await page.getByRole("button", { name: "清除" }).click();
+	await expect(editor(page)).toHaveText("");
+	await page.getByRole("button", { name: "撤销" }).click();
+	await expect(editor(page)).toContainText("answer = 42");
+});

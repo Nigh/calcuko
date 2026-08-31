@@ -45,7 +45,7 @@
 						d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
 					/></svg
 				>
-				<span>App is ready for offline use.</span>
+				<span>应用已可离线使用。</span>
 			</div>
 		{/if}
 
@@ -67,19 +67,20 @@
 					></path></svg
 				>
 				<div class="flex flex-col">
-					<span class="font-bold">New version available!</span>
-					<span class="text-xs">Click reload to update.</span>
+					<span class="font-bold">发现新版本</span>
+					<span class="text-xs">重新加载即可完成更新。</span>
 				</div>
 
 				<div class="flex gap-2">
-					<button class="btn btn-sm btn-ghost" on:click={close}>
-						Close
+					<button class="btn btn-sm btn-ghost" on:click={close} aria-label="关闭更新提示">
+						关闭
 					</button>
 					<button
 						class="btn btn-sm btn-primary border-white text-white hover:bg-primary-focus hover:border-white"
 						on:click={() => updateServiceWorker(true)}
+						aria-label="重新加载并更新应用"
 					>
-						Reload
+						重新加载
 					</button>
 				</div>
 			</div>
