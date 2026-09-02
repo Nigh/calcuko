@@ -78,6 +78,7 @@ calcuko/
 - **光标与行高**：CodeMirror 光标显式使用主题主色；多行结果通过实测结果高度创建 block spacer，使下一源码行与下一结果行保持像素级对齐
 - **行联动**：当前源码行与对应结果同步高亮，hover 结果时强化结果样式并高亮左侧源码行；两栏双向同步滚动
 - **Header 图标**：使用 `<img src="/favicon.svg">` 引用 `public/favicon.svg` 作为品牌 logo，替代之前的内联计算器 SVG
+- **Header 版本号**：标题右下侧显示构建版本；组件读取 `PUBLIC_APP_VERSION`，未注入时回退为 `dev`
 - **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
 - **实现方式**：表达式经 tokenizer、Pratt parser 生成 AST，再由受控解释器在显式 scope 中执行，不调用 JavaScript 动态求值
 - **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等），以及进制转换函数 `hex()` `bin()` `oct()`
@@ -144,6 +145,7 @@ calcuko/
 - **站点**：`https://Nigh.github.io`
 - **Base path**：`/calcuko`（GitHub Pages 子路径部署）
 - **构建命令**：`npm run build`（输出到 `dist/`）
+- **版本注入**：CI 从 `package.json` 注入 `PUBLIC_APP_VERSION`，标签部署使用 Git 标签名；本地开发和未注入构建显示 `dev`
 
 ## 开发命令
 

@@ -1,7 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const editor = (page: Page) => page.locator(".cm-content");
-const setSource = async (page: Page, source: string) => { await editor(page).fill(source); };
+const setSource = async (page: Page, source: string) => {
+	await editor(page).fill(source);
+};
+
+test("shows the build version beside the title", async ({ page }) => {
+	await page.goto("./");
+	await expect(page.getByLabel(/^版本 /)).toHaveText(/^(?:dev|v\d+\.\d+\.\d+)$/);
+});
 
 test("evaluates, persists, and restores formulas", async ({ page }) => {
 	await page.goto("./");
@@ -35,7 +42,7 @@ test("shows a visible themed editor cursor", async ({ page }) => {
 
 test("shows matrices, errors, and color previews", async ({ page }) => {
 	await page.goto("./");
-	await setSource(page, 'missing\nmatrix([[1,2],[3,4]])\nrgb(255,0,0)');
+	await setSource(page, "missing\nmatrix([[1,2],[3,4]])\nrgb(255,0,0)");
 	await expect(page.getByText(/第 1 行，第 1 列/)).toBeVisible();
 	await expect(page.locator('[data-result-line="2"] table tr')).toHaveCount(2);
 	await expect(page.locator('[data-result-line="2"] table tr').first().locator("td")).toHaveCount(2);
@@ -60,7 +67,7 @@ test("formats results and restores the line format after reload", async ({ page 
 	await expect(page.locator('[data-result-line="1"]')).toContainText("0xFF");
 	await page.reload();
 	await expect(page.locator('[data-result-line="1"]')).toContainText("0xFF");
-	await setSource(page, 'other=1\nvalue=255');
+	await setSource(page, "other=1\nvalue=255");
 	await expect(page.locator('[data-result-line="2"]')).toContainText("0xFF");
 	await setSource(page, 'other=1\nvalue="text"');
 	await expect(page.locator('[data-result-line="2"]')).toContainText('"text"');

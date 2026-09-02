@@ -12,6 +12,7 @@
 	import { editorUiField, setEditorUi, syntaxDecorations } from "../lib/editorExtensions";
 
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
+	const APP_VERSION = import.meta.env.PUBLIC_APP_VERSION?.trim() || "dev";
 	const formatStorageKey = "calcuko-result-formats";
 	type StoredLineFormat = { lineText: string; kind: ResultValueKind; format: ResultFormat };
 
@@ -143,7 +144,10 @@
 				<img src={BASE_URL + "/favicon.svg"} alt="Calcuko" class="h-8 w-8" />
 			</div>
 			<div>
-				<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
+				<div class="flex items-end gap-1.5">
+					<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
+					<span class="pb-0.5 font-mono text-[10px] leading-none text-base-content/40" aria-label={`版本 ${APP_VERSION}`}>{APP_VERSION}</span>
+				</div>
 				<p class="text-xs font-medium text-base-content/50 uppercase tracking-widest">Multi-line Formula Calculator</p>
 			</div>
 		</div>
@@ -262,7 +266,7 @@
 			</div>
 		</div>
 	</section>
-</div>
+				</div>
 
 {#if formatMenuLine !== null && lineResults[formatMenuLine - 1]?.value !== undefined}
 	{@const menuIndex = formatMenuLine - 1}
