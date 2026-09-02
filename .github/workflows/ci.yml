@@ -18,6 +18,8 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run check
+      - name: Set app version
+        run: node -p '"PUBLIC_APP_VERSION=v" + require("./package.json").version' >> "$GITHUB_ENV"
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

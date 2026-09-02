@@ -12,6 +12,7 @@
 	import { editorUiField, setEditorUi, syntaxDecorations } from "../lib/editorExtensions";
 
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
+	const APP_VERSION = import.meta.env.PUBLIC_APP_VERSION?.trim() || "dev";
 	const formatStorageKey = "calcuko-result-formats";
 	type StoredLineFormat = { lineText: string; kind: ResultValueKind; format: ResultFormat };
 
@@ -143,7 +144,10 @@
 				<img src={BASE_URL + "/favicon.svg"} alt="Calcuko" class="h-8 w-8" />
 			</div>
 			<div>
-				<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
+				<div class="flex items-end gap-1.5">
+					<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
+					<span class="pb-0.5 font-mono text-[10px] leading-none text-base-content/40" aria-label={`版本 ${APP_VERSION}`}>{APP_VERSION}</span>
+				</div>
 				<p class="text-xs font-medium text-base-content/50 uppercase tracking-widest">Multi-line Formula Calculator</p>
 			</div>
 		</div>
@@ -262,7 +266,7 @@
 			</div>
 		</div>
 	</section>
-</div>
+				</div>
 
 {#if formatMenuLine !== null && lineResults[formatMenuLine - 1]?.value !== undefined}
 	{@const menuIndex = formatMenuLine - 1}
@@ -397,6 +401,8 @@
 	:global(.token-operator) { color: #ec4899; font-weight: bold; }
 	:global(.token-bracket) { color: #6366f1; }
 	:global(.token-variable) { color: #0ea5e9; }
+	:global(.token-builtin-function) { color: #a78bfa; font-weight: 600; }
+	:global(.token-user-function) { color: #22d3ee; font-weight: 600; }
 	:global(.token-unknown) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
 	:global(.token-error) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
 
@@ -405,7 +411,7 @@
 	.result-hover { background: color-mix(in oklab, var(--color-primary) 24%, transparent); box-shadow: inset 3px 0 var(--color-primary); filter: brightness(1.15); }
 	.result-error { background: color-mix(in oklab, var(--color-error) 16%, transparent); }
 	.format-selected { background: color-mix(in oklab, var(--color-primary) 20%, transparent); color: var(--color-primary); font-weight: 700; }
-	.matrix-result { width: max-content; }
+	.matrix-result { width: max-content; padding-block: 0.125rem; }
 	.matrix-bracket { width: 0.4rem; flex: 0 0 0.4rem; border-block: 2px solid currentColor; }
 	.matrix-bracket-left { border-left: 2px solid currentColor; }
 	.matrix-bracket-right { border-right: 2px solid currentColor; }
