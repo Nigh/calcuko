@@ -51,6 +51,6 @@ export function calcukoCompletionSource(context: CompletionContext): CompletionR
 }
 
 export const calcukoAutocomplete = [
-	autocompletion({ override: [calcukoCompletionSource], activateOnTyping: true }),
+	autocompletion({ override: [calcukoCompletionSource], activateOnTyping: true, interactionDelay: 0 }),
 	Prec.highest(keymap.of([{ key: "Tab", run: acceptCompletion }])),
 ];
