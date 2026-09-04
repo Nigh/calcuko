@@ -14,6 +14,7 @@ import { colorBuiltins, isColorValue } from "./builtins/colors";
 import { encodingBuiltins } from "./builtins/encoding";
 import { randomBuiltins, statisticsBuiltins } from "./builtins/statistics";
 import { solverBuiltins } from "./builtins/solver";
+import { getLocale, localizeError, t, type Locale } from "./i18n";
 
 // 从低位起每 groupSize 位添加空格
 export function formatRadixString(str: string, groupSize: number): string {
@@ -154,7 +155,7 @@ const resultValueKind = (value: unknown): LineResult["valueKind"] => {
 	return "other";
 };
 
-export function evaluateSource(input: string): { lines: string[]; lineResults: LineResult[]; variableSnapshot: Record<string, unknown> } {
+export function evaluateSource(input: string, locale: Locale = getLocale()): { lines: string[]; lineResults: LineResult[]; variableSnapshot: Record<string, unknown> } {
 	const normalized = input.replace(/\r\n?/g, "\n");
 	const nextLines = normalized.split("\n");
 	const scope: RuntimeScope = { ...mathContext };
@@ -196,7 +197,7 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 			if (error instanceof LanguageError) {
 				nextLineResults.push({
 					type: "error",
-					text: `第 ${lineIndex + 1} 行，第 ${error.span.start.column} 列：${error.message}`,
+					text: t("lineError", { line: lineIndex + 1, column: error.span.start.column, message: localizeError(error.message, locale) }, locale),
 					errorCode: error.code,
 					line: lineIndex + 1,
 					column: error.span.start.column,
@@ -205,7 +206,7 @@ export function evaluateSource(input: string): { lines: string[]; lineResults: L
 			}
 			nextLineResults.push({
 				type: "error",
-				text: error instanceof Error ? error.message : String(error),
+				text: localizeError(error instanceof Error ? error.message : String(error), locale),
 			});
 		}
 	}

@@ -4,7 +4,7 @@
 	import { EditorState } from "@codemirror/state";
 	import { EditorView } from "@codemirror/view";
 	import { evaluateSource, formatValue } from "../lib/evaluator";
-	import { storageKey, sampleFormula, mathFunctions, mathConstants } from "../lib/constants";
+	import { storageKey, sampleFormula, sampleFormulaEnglish, mathFunctions, mathConstants } from "../lib/constants";
 	import type { LineResult } from "../lib/types";
 	import { isColorValue } from "../lib/builtins/colors";
 	import { isMatrix } from "../lib/language/matrix";
@@ -12,11 +12,14 @@
 	import { editorUiField, setEditorUi, syntaxDecorations } from "../lib/editorExtensions";
 	import { calcukoAutocomplete } from "../lib/autocomplete";
 
+	import { constantDescription, detectLocale, functionDescription, localeOptions, setLocale, t, type Locale } from "../lib/i18n";
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 	const APP_VERSION = import.meta.env.PUBLIC_APP_VERSION?.trim() || "dev";
 	const formatStorageKey = "calcuko-result-formats";
 	type StoredLineFormat = { lineText: string; kind: ResultValueKind; format: ResultFormat };
 
+	const helpCode = (value: string) => `<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">${value}</code>`;
+	let locale: Locale = "zh-CN";
 	let source = sampleFormula;
 	let editorHost: HTMLDivElement;
 	let editorView: EditorView | undefined;
@@ -68,13 +71,14 @@
 		editorView.dispatch({ changes: { from: 0, to: editorView.state.doc.length, insert: next } });
 	}
 	function resetSample() {
-		if (!window.confirm("载入示例将替换当前内容，是否继续？")) return;
-		undoSource = source; replaceSource(sampleFormula);
+		if (!window.confirm(t("loadConfirm", {}, locale))) return;
+		undoSource = source; replaceSource(locale === "zh-CN" ? sampleFormula : sampleFormulaEnglish);
 	}
 	function clearEditor() {
-		if (!window.confirm("确定要清空全部公式吗？")) return;
+		if (!window.confirm(t("clearConfirm", {}, locale))) return;
 		undoSource = source; lineFormats = {}; localStorage.removeItem(formatStorageKey); replaceSource("");
 	}
+	function changeLocale() { setLocale(locale); }
 	function undoProgrammaticChange() { if (undoSource !== null) { const previous = source; replaceSource(undoSource); undoSource = previous; } }
 	function openHelp() { helpDialogOpen = true; queueMicrotask(() => helpCloseButton?.focus()); }
 	function closeHelp() { helpDialogOpen = false; queueMicrotask(() => editorView?.focus()); }
@@ -91,7 +95,7 @@
 	function handleWindowKeydown(event: KeyboardEvent) { if (event.key === "Escape") { if (formatMenuLine !== null) formatMenuLine = null; else if (helpDialogOpen) closeHelp(); } }
 	function handleDialogOverlayClick(event: MouseEvent) { if ((event.target as HTMLElement).classList.contains("dialog-overlay")) closeHelp(); }
 	function copyValue(value: string) {
-		navigator.clipboard.writeText(value).then(() => { copyToastText = `已复制: ${value}`; showCopyToast = true; setTimeout(() => showCopyToast = false, 2000); }).catch(() => { copyToastText = "复制失败"; showCopyToast = true; setTimeout(() => showCopyToast = false, 2000); });
+		navigator.clipboard.writeText(value).then(() => { copyToastText = t("copied", { value }, locale); showCopyToast = true; setTimeout(() => showCopyToast = false, 2000); }).catch(() => { copyToastText = t("copyFailed", {}, locale); showCopyToast = true; setTimeout(() => showCopyToast = false, 2000); });
 	}
 	function resultText(item: LineResult, format?: ResultFormat) { return item.type === "success" && item.value !== undefined ? formatResult(item.value, format, item.hasSi) : item.text; }
 	function chooseFormat(index: number, option: FormatOption) {
@@ -110,7 +114,8 @@
 	}
 
 	onMount(() => {
-		const saved = localStorage.getItem(storageKey); source = saved !== null ? saved : source;
+		locale = detectLocale(); setLocale(locale, false);
+		const saved = localStorage.getItem(storageKey); source = saved !== null ? saved : locale === "zh-CN" ? sampleFormula : sampleFormulaEnglish;
 		try {
 			const persisted = JSON.parse(localStorage.getItem(formatStorageKey) ?? "null");
 			if (persisted?.formats) { lineFormats = persisted.formats; if (typeof persisted.source === "string" && persisted.source !== source) reconcileFormats(persisted.source, source); }
@@ -130,7 +135,7 @@
 	});
 
 	$: {
-		const result = evaluateSource(source); lines = result.lines; lineResults = result.lineResults; variableSnapshot = result.variableSnapshot;
+		const result = evaluateSource(source, locale); lines = result.lines; lineResults = result.lineResults; variableSnapshot = result.variableSnapshot;
 		cleanFormats();
 		queueMicrotask(dispatchEditorUi);
 	}
@@ -147,20 +152,24 @@
 			<div>
 				<div class="flex items-end gap-1.5">
 					<h1 class="text-xl font-black tracking-tight">Calcuko</h1>
-					<span class="pb-0.5 font-mono text-[10px] leading-none text-base-content/40" aria-label={`版本 ${APP_VERSION}`}>{APP_VERSION}</span>
+					<span class="pb-0.5 font-mono text-[10px] leading-none text-base-content/40" aria-label={t("version", {}, locale) + " " + APP_VERSION}>{APP_VERSION}</span>
 				</div>
-				<p class="text-xs font-medium text-base-content/50 uppercase tracking-widest">Multi-line Formula Calculator</p>
+				<p class="text-xs font-medium text-base-content/50 uppercase tracking-widest">{t("tagline", {}, locale)}</p>
 			</div>
 		</div>
 		
 		<div class="flex items-center gap-2">
+			<label class="sr-only" for="locale-select">{t("language", {}, locale)}</label>
+			<select id="locale-select" class="locale-select select select-bordered select-sm w-auto bg-base-100" bind:value={locale} on:change={changeLocale} aria-label={t("language", {}, locale)}>
+				{#each localeOptions as option}<option value={option.value}>{option.label}</option>{/each}
+			</select>
 			<button class="btn btn-ghost btn-sm gap-1 normal-case" type="button" on:click={openHelp}>
 				<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
-				<span class="hidden sm:inline">帮助</span>
+				<span class="hidden sm:inline">{t("help", {}, locale)}</span>
 			</button>
 			<a href="https://github.com/Nigh/calcuko" target="_blank" class="btn btn-ghost btn-sm gap-2 normal-case">
 				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-				<span class="hidden sm:inline">Star on GitHub</span>
+				<span class="hidden sm:inline">{t("starGitHub", {}, locale)}</span>
 			</a>
 		</div>
 	</header>
@@ -170,25 +179,25 @@
 			<!-- 编辑器标题栏 -->
 			<div class="flex items-center justify-between border-b border-base-300 bg-base-50/50 px-5 py-3">
 				<div class="flex items-center gap-2">
-					{#if undoSource !== null}<button class="btn btn-ghost btn-xs" type="button" on:click={undoProgrammaticChange} title="撤销最近一次载入或清空">撤销</button>{/if}
+					{#if undoSource !== null}<button class="btn btn-ghost btn-xs" type="button" on:click={undoProgrammaticChange} title={t("undoTitle", {}, locale)}>{t("undo", {}, locale)}</button>{/if}
 					<div class="h-2 w-2 rounded-full bg-success"></div>
 					<h2 class="text-sm font-bold opacity-70">EDITOR</h2>
 				</div>
 				<div class="flex items-center gap-2">
-					<button class="btn btn-ghost btn-xs gap-1 normal-case" type="button" on:click={resetSample} title="载入示例公式">
+					<button class="btn btn-ghost btn-xs gap-1 normal-case" type="button" on:click={resetSample} title={t("sampleTitle", {}, locale)}>
 						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
-						示例
+						{t("sample", {}, locale)}
 					</button>
-					<button class="btn btn-ghost btn-xs gap-1 normal-case text-error" type="button" on:click={clearEditor} title="清空编辑器">
+					<button class="btn btn-ghost btn-xs gap-1 normal-case text-error" type="button" on:click={clearEditor} title={t("clearTitle", {}, locale)}>
 						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c0 1 2 1 2 2v2"/></svg>
-						清除
+						{t("clear", {}, locale)}
 					</button>
 					<div class="badge badge-sm badge-outline font-mono opacity-50">UTF-8</div>
 				</div>
 			</div>
 
 			<div class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(180px,320px)] overflow-hidden font-mono text-[13px] leading-6">
-				<div bind:this={editorHost} class="min-h-0 overflow-hidden bg-base-100" aria-label="公式编辑器"></div>
+				<div bind:this={editorHost} class="min-h-0 overflow-hidden bg-base-100" aria-label={t("editorLabel", {}, locale)}></div>
 
 				<div bind:this={resultsPanel} class="relative overflow-auto border-l border-base-300 bg-base-200/20 py-4" on:scroll={syncResultsScroll}>
 					{#each lineResults as item, index}
@@ -213,7 +222,7 @@
 									on:click|stopPropagation
 									title={resultText(item, lineFormats[index + 1]?.format)}
 								>
-									{#if item.preview?.type === "color"}<span class="mr-1 inline-block h-3 w-3 rounded-sm border border-base-content/20 align-middle" style:background={item.preview.css} aria-label="颜色预览"></span>{/if}
+									{#if item.preview?.type === "color"}<span class="mr-1 inline-block h-3 w-3 rounded-sm border border-base-content/20 align-middle" style:background={item.preview.css} aria-label={t("colorPreview", {}, locale)}></span>{/if}
 									{#if isMatrix(item.value)}
 										<div class="matrix-result inline-flex max-w-full items-stretch align-top">
 											<span class="matrix-bracket matrix-bracket-left" aria-hidden="true"></span>
@@ -240,11 +249,11 @@
 				<div class="card-body p-5">
 					<div class="mb-2 flex items-center gap-2">
 						<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>
-						<h2 class="font-bold text-base-content/80">变量快照</h2>
+						<h2 class="font-bold text-base-content/80">{t("variables", {}, locale)}</h2>
 					</div>
 					<div class="rounded-xl bg-base-200/50 p-4">
 						{#if Object.keys(variableSnapshot).length === 0}
-							<p class="text-xs text-base-content/40 italic">暂无变量</p>
+							<p class="text-xs text-base-content/40 italic">{t("noVariables", {}, locale)}</p>
 						{:else}
 							<div class="flex flex-wrap gap-2">
 								{#each Object.entries(variableSnapshot) as [name, value]}
@@ -252,9 +261,9 @@
 										class="btn btn-ghost btn-xs h-auto min-h-0 gap-1 rounded-lg border border-base-300 px-2.5 py-1.5 text-xs font-mono normal-case hover:border-primary/40 hover:bg-primary/5"
 										type="button"
 										on:click={() => copyValue(formatValue(value))}
-										title="点击复制值"
+										title={t("copyValue", {}, locale)}
 									>
-										{#if isColorValue(value)}<span class="inline-block h-3 w-3 rounded-sm border border-base-content/20" style:background={value.css} aria-label="颜色预览"></span>{/if}
+										{#if isColorValue(value)}<span class="inline-block h-3 w-3 rounded-sm border border-base-content/20" style:background={value.css} aria-label={t("colorPreview", {}, locale)}></span>{/if}
 										<span class="font-semibold text-base-content/70">{name}</span>
 										<span class="text-base-content/50">=</span>
 										<span class="text-primary">{formatValue(value)}</span>
@@ -281,13 +290,13 @@
 		role="menu"
 		on:click|stopPropagation
 	>
-		<div class="mb-1 px-2 text-[11px] font-bold uppercase tracking-wide text-base-content/50">结果格式</div>
+		<div class="mb-1 px-2 text-[11px] font-bold uppercase tracking-wide text-base-content/50">{t("resultFormat", {}, locale)}</div>
 		{#each menuOptions as option}
 			<button type="button" class:format-selected={(lineFormats[formatMenuLine!]?.format.name ?? "default") === option.name} class="block w-full rounded px-2 py-1 text-left hover:bg-primary/15" role="menuitem" on:click={() => chooseFormat(menuIndex, option)}>{option.label}</button>
 		{/each}
 		{#if selectedOption?.precisionMode}
 			<div class="mt-2 border-t border-base-300 pt-2">
-				<div class="px-2 text-[11px] text-base-content/50">{selectedOption.precisionMode === "decimalPlaces" ? "小数位" : "有效位"}</div>
+				<div class="px-2 text-[11px] text-base-content/50">{selectedOption.precisionMode === "decimalPlaces" ? t("decimalPlaces", {}, locale) : t("significantDigits", {}, locale)}</div>
 				<div class="mt-1 flex flex-wrap gap-1 px-2">
 					{#each selectedOption.precisionMode === "decimalPlaces" ? [0,2,4,6,8,12] : [3,4,6,8,12,16,34] as precision}
 						<button type="button" class:btn-primary={lineFormats[formatMenuLine!]?.format.precision === precision} class="btn btn-xs" on:click={() => choosePrecision(menuIndex, precision)}>{precision}</button>
@@ -305,71 +314,71 @@
 			<div class="sticky top-0 z-10 flex items-center justify-between border-b border-base-300 bg-base-100 px-6 py-4">
 				<div class="flex items-center gap-2">
 					<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
-					<h2 class="text-lg font-bold">帮助</h2>
+					<h2 class="text-lg font-bold">{t("help", {}, locale)}</h2>
 				</div>
-				<button bind:this={helpCloseButton} class="btn btn-ghost btn-sm btn-square" type="button" on:click={closeHelp} aria-label="关闭帮助">
+				<button bind:this={helpCloseButton} class="btn btn-ghost btn-sm btn-square" type="button" on:click={closeHelp} aria-label={t("closeHelp", {}, locale)}>
 					<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
 				</button>
 			</div>
 
 			<div class="space-y-6 px-6 py-5">
 				<div>
-					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">基本用法</h3>
+					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">{t("basics", {}, locale)}</h3>
 					<ul class="space-y-2 text-sm leading-relaxed text-base-content/70">
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">1.</span>
-							<span>赋值：使用 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">x = 10</code> 定义变量。</span>
+							<span>{@html t("helpAssignment", { code: helpCode("x = 10") }, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">2.</span>
-							<span>求值：直接输入表达式如 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">sin(PI/2)</code>。</span>
+							<span>{@html t("helpEvaluation", { code: helpCode("sin(PI/2)") }, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">3.</span>
-							<span>注释：仅忽略前导空白后以 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">//</code> 开头的整行；表达式中的 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">//</code> 表示整数除法。</span>
+							<span>{@html t("helpComment", { line: helpCode("//"), division: helpCode("//") }, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">4.</span>
-							<span>函数：内置 Math 所有常用函数和常量。</span>
+							<span>{t("helpFunctions", {}, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">5.</span>
-							<span>词缀：支持 SI 词缀如 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">10k</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">4.7u</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">100n</code>。</span>
+							<span>{@html t("helpSi", { codes: [helpCode("10k"), helpCode("4.7u"), helpCode("100n")].join(" ") }, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">6.</span>
-							<span>空格：行内空格会被忽略，支持自由格式输入。</span>
+							<span>{t("helpSpaces", {}, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">7.</span>
-							<span>隐式乘法：<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">2PI</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">10kOhm</code> 自动展开。</span>
+							<span>{@html t("helpImplicit", { codes: [helpCode("2PI"), helpCode("10kOhm")].join(" ") }, locale)}</span>
 						</li>
 						<li class="flex gap-2">
 							<span class="text-primary font-bold">8.</span>
-							<span>进制：支持 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">0xFF</code>（十六进制）<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">0b1010</code>（二进制）<code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">077</code>（八进制）。使用 <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">hex()</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">bin()</code> <code class="rounded bg-base-200 px-1.5 py-0.5 font-mono text-xs">oct()</code> 转换结果进制。</span>
+							<span>{@html t("helpRadix", { hex: helpCode("0xFF"), bin: helpCode("0b1010"), oct: helpCode("077"), functions: [helpCode("hex()"), helpCode("bin()"), helpCode("oct()")].join(" ") }, locale)}</span>
 						</li>
 					</ul>
 				</div>
 
 				<div>
-					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">常用函数</h3>
+					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">{t("commonFunctions", {}, locale)}</h3>
 					<div class="grid grid-cols-2 gap-2">
 						{#each Object.entries(mathFunctions) as [name, desc]}
 							<div class="rounded-lg bg-base-200/50 px-3 py-2">
 								<div class="font-mono text-xs font-bold text-primary">{name}</div>
-								<div class="mt-0.5 text-xs text-base-content/50">{desc}</div>
+								<div class="mt-0.5 text-xs text-base-content/50">{functionDescription(name, desc, locale)}</div>
 							</div>
 						{/each}
 					</div>
 				</div>
 
 				<div>
-					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">常量</h3>
+					<h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-base-content/50">{t("constants", {}, locale)}</h3>
 					<div class="flex gap-3">
 						{#each Object.entries(mathConstants) as [name, desc]}
 							<div class="flex-1 rounded-lg bg-base-200/50 px-3 py-2">
 								<div class="font-mono text-xs font-bold text-primary">{name}</div>
-								<div class="mt-0.5 text-xs text-base-content/50">{desc}</div>
+								<div class="mt-0.5 text-xs text-base-content/50">{constantDescription(name, desc, locale)}</div>
 							</div>
 						{/each}
 					</div>
@@ -378,7 +387,7 @@
 
 			<div class="border-t border-base-300 px-6 py-4">
 				<button class="btn btn-primary btn-block" type="button" on:click={closeHelp}>
-					知道了
+					{t("gotIt", {}, locale)}
 				</button>
 			</div>
 		</div>
@@ -396,6 +405,11 @@
 {/if}
 
 <style>
+	.locale-select,
+	.locale-select option {
+		background-color: var(--color-base-100);
+		color: var(--color-base-content);
+	}
 	:global(.token-comment) { color: #94a3b8; font-style: italic; }
 	:global(.token-number) { color: #f59e0b; }
 	:global(.token-string) { color: #10b981; }

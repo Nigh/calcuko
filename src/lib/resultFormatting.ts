@@ -3,6 +3,7 @@ import { colorBuiltins, isColorValue, type ColorValue } from "./builtins/colors"
 import { formatNumeric, isNumericValue, toBigIntExact, toDecimal, type NumericValue, Rational } from "./language/numeric";
 import { formatRadixString, formatValue } from "./evaluator";
 import { isMatrix } from "./language/matrix";
+import { t } from "./i18n";
 
 export type ResultValueKind = "bigint" | "decimal" | "rational" | "color" | "matrix" | "other";
 export type ResultFormatName = "default" | "decimal" | "hex" | "binary" | "octal" | "scientific" | "si" | "rgb" | "hsl" | "hsv" | "yuv" | "rgb565" | "hexColor";
@@ -36,11 +37,14 @@ const colorOptions: FormatOption[] = [
 	{ name: "hsv", label: "HSV" }, { name: "yuv", label: "YUV" }, { name: "rgb565", label: "RGB565" }, { name: "hexColor", label: "Hex" },
 ];
 
+const formatLabelKeys = { "默认": "default", "十进制": "decimal", "十六进制": "hexadecimal", "二进制": "binary", "八进制": "octal", "科学计数": "scientific", "普通小数": "plainDecimal", "默认分数": "defaultFraction", "原始色彩空间": "originalColor" } as const;
+const localized = (options: FormatOption[]) => options.map((option) => ({ ...option, label: option.label in formatLabelKeys ? t(formatLabelKeys[option.label as keyof typeof formatLabelKeys]) : option.label }));
+
 export function formatOptions(value: unknown): FormatOption[] {
-	if (isColorValue(value)) return colorOptions;
+	if (isColorValue(value)) return localized(colorOptions);
 	if (!isNumericValue(value)) return [];
-	try { toBigIntExact(value); return integerOptions; } catch { /* not an exact integer */ }
-	return value instanceof Rational ? rationalOptions : decimalOptions;
+	try { toBigIntExact(value); return localized(integerOptions); } catch { /* not an exact integer */ }
+	return localized(value instanceof Rational ? rationalOptions : decimalOptions);
 }
 
 const radix = (value: NumericValue, base: 2 | 8 | 16, prefix: string) => {

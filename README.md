@@ -1,42 +1,48 @@
+
+> [简体中文](./README.zh-CN.md) · [English](./README.md)
+
 <div align="center">
-  <img src="./public/pwa-512x512.png" height="180" alt="Calcuko Logo" />
-  <h1>Calcuko（算子）- 多行变量公式计算器</h1>
+  <img src="./public/pwa-512x512.png" height="180" alt="Calcuko logo" />
+  <h1>Calcuko — Multi-line Formula Calculator</h1>
 </div>
 
-> **在线体验地址：[https://Nigh.github.io/calcuko/](https://Nigh.github.io/calcuko/)**
+
+> **Try it online: [https://Nigh.github.io/calcuko/](https://Nigh.github.io/calcuko/)**
 
 > [!NOTE]
-> 本项目受 [calctus](https://github.com/shapoco/calctus) 启发而开发。  
-> 本人是`calctus`的重度用户，但是由于其为`C#`开发，只支持`Windows`环境，所以`Calcuko`作为一个跨平台的方案可以用于满足在其他平台上的公式计算需求。
+> Calcuko was inspired by [calctus](https://github.com/shapoco/calctus). As a cross-platform web app, Calcuko brings a similar multi-line calculation workflow to platforms beyond the original Windows-only C# application.
 
-Calcuko 是一款专为工程师、学生和开发者设计的轻量级、响应式多行公式计算器。它允许你像写代码一样编写计算逻辑，支持变量定义、实时求值以及自动依赖联动，并可以作为 PWA 应用安装到手机或电脑上离线使用。
+Calcuko is a lightweight, responsive multi-line formula calculator for engineers, students, and developers. Write calculations like code, define variables, see dependent results update instantly, and install it as a PWA for offline use on desktop or mobile.
 
+![Calcuko interface](./assets/hero.png)
 
-![Calcuko 主界面](./assets/hero.png)
+## ✨ Features
 
-## ✨ 核心特性
+- **🚀 Live dependency updates:** Edit any value and every later line that depends on it updates immediately.
+- **📝 Flexible input:** Mix `variable = expression` assignments with standalone expressions.
+- **🎨 Smart syntax highlighting:** Clearly distinguishes variables, operators, values, comments, built-in functions, and custom functions, with matching-bracket highlighting.
+- **📱 Offline-first PWA:** Install Calcuko on your desktop or home screen and keep calculating without a network connection.
+- **💾 Local persistence:** Formulas and result-format preferences are restored the next time you open the app.
+- **💬 Line comments:** A whole line beginning with `//` after optional whitespace is a comment; `//` inside an expression is truncating integer division.
+- **🛡️ Controlled evaluation:** A tokenizer, AST parser, and interpreter evaluate formulas without executing arbitrary JavaScript.
+- **🔢 High-precision numbers:** Integers use arbitrary-precision BigInt, decimals use 34-digit Decimal arithmetic, and `2$3` creates an exact, automatically reduced fraction.
+- **📊 Readable results:** Matrices render as tables, while numeric and color results support selectable formats, precision, radix, SI notation, and color spaces.
 
-- **🚀 实时联动计算**：修改任意一行的数值，后续所有依赖该变量的行都会瞬间自动更新。
-- **📝 混合编写模式**：支持 `变量 = 表达式` 赋值模式，也支持纯表达式直接求值。
-- **🎨 智能语法高亮**：变量、运算符、数值和注释一目了然，并支持**配对括号高亮**，防止逻辑错误。
-- **📱 离线优先 (PWA)**：支持安装到桌面或主屏幕，无需网络即可随时进行复杂计算。
-- **💾 本地持久化**：你的计算公式会自动保存到浏览器，下次打开即刻继续工作。
-- **💬 行注释支持**：忽略前导空白后以 `//` 开头的整行是注释；表达式中的 `//` 表示整数除法。
-- **🛡️ 受控求值**：公式由 tokenizer、AST parser 和解释器执行，不直接运行 JavaScript 代码。
-- **🔢 高精度数值**：整数为任意精度 BigInt，小数使用 34 位 Decimal；`2$3` 表示可精确运算并自动约分的分数。
-- **📊 可读结果**：结果栏仅显示值，矩阵使用二维表格；单击数值或颜色结果可选择进制、科学计数、SI、精度或色彩空间，格式会本地保存。
+## 🚀 Quick start
 
-## 🚀 快速上手
+### 1. Basic calculations
 
-### 1. 基础计算
-直接输入公式即可查看结果：
+Enter an expression to see its result:
+
 ```javascript
 (12 + 8) * 5 / 2
 sqrt(144) + pow(2, 10)
 ```
 
-### 2. 变量定义与引用
-像写脚本一样定义变量：
+### 2. Variables and references
+
+Define variables like a small script:
+
 ```javascript
 price = 199
 count = 3
@@ -45,20 +51,22 @@ tax = 0.08
 total = price * count * (1 + tax)
 ```
 
-### 3. 注释与复杂逻辑
+### 3. Comments and derived values
+
 ```javascript
-// 输入参数
+// Input dimensions
 width = 50
 height = 20
 
-// 计算面积
+// Calculate area
 area = width * height
 
-// 引用上方变量
+// Reference earlier variables
 diagonal = sqrt(pow(width, 2) + pow(height, 2))
 ```
 
-### 4. 自定义函数与 Lambda
+### 4. Custom functions and lambdas
+
 ```javascript
 fn square(x) = x**2
 square(12)
@@ -67,25 +75,23 @@ scale = (value, factor) => value * factor
 scale(10, 3)
 ```
 
-数组可以一次赋值给多个变量：`[a, b, c] = [10, 20, 30]`。两侧长度必须相同，否则不会写入任何目标变量。
+Destructuring assigns an array to several variables at once: `[a, b, c] = [10, 20, 30]`. Both sides must have the same length; otherwise, no target is changed.
 
-范围表达式 `1..5` 不包含终点，`1..=5` 包含终点；`range(1, 5, 0.5)` 可指定步长。单次最多生成 10,000 项。
+The range `1..5` excludes its endpoint, while `1..=5` includes it. Use `range(1, 5, 0.5)` for an explicit step. A range may contain at most 10,000 items.
 
-数组支持递归逐元素运算与标量广播，例如 `[1,2,3]*4`；内置 `sum`、`ave`、`map`、`filter`、`aggregate`、`sort`、`reverse` 和 `unique`。
+Arrays support recursive element-wise operations and scalar broadcasting, such as `[1,2,3]*4`. Built-ins include `sum`, `ave`, `map`, `filter`, `aggregate`, `sort`, `reverse`, and `unique`.
 
-`matrix([[1,2],[3,4]])` 构造独立矩阵值，支持矩阵/标量运算、矩阵乘法以及 `det()` 精确行列式。单行和单列矩阵可使用可变参数语法糖：`row(1,2,3)` 等价于 `matrix([[1,2,3]])`，`col(1,2,3)` 等价于 `matrix([[1],[2],[3]])`。
+`matrix([[1,2],[3,4]])` creates a matrix with matrix/scalar operations, matrix multiplication, and exact determinants through `det()`. The helpers `row(1,2,3)` and `col(1,2,3)` create single-row and single-column matrices.
 
-## 📚 内置函数参考
+## 📚 Built-in function reference
 
-字符串中的空格和 `//` 会原样保留，例如 `url = "https://example.com/a b"`。
+Spaces and `//` inside strings are preserved, as in `url = "https://example.com/a b"`.
 
-Calcuko 内置了标准 Math 对象的所有常量和函数：
+Calcuko includes the standard JavaScript `Math` constants and functions. Engineering helpers also cover arbitrary-width bit operations and Hamming SECDED encoding and decoding through `eccEncode(width, value)` and `eccDecode(width, encoded)`.
 
-工程函数还包括任意位宽 bit 操作，以及 `eccEncode(width,value)` / `eccDecode(width,encoded)` Hamming SECDED 编解码。
+### Color operations
 
-### 颜色操作
-
-颜色函数支持 RGB（0–255）、HSL/HSV（H 为 0–360，其他通道为 0–100）、BT.601 YUV（各通道 0–255）、Web Hex 和 RGB565。颜色结果会在结果栏和变量快照中显示预览色块。
+Color functions support RGB (0–255), HSL/HSV (H: 0–360; other channels: 0–100), BT.601 YUV (0–255), Web Hex, and RGB565. Color results display a swatch in both the result panel and variable snapshot.
 
 ```javascript
 red = rgb(255, 0, 0)
@@ -96,7 +102,7 @@ brand = hexColor("#FB7185")
 packed = rgb565(0xF800)
 ```
 
-使用转换函数可在颜色空间或输出格式之间转换：
+Convert between color spaces and output formats with:
 
 ```javascript
 toRgb(brand)
@@ -107,38 +113,37 @@ toRgb565(brand)
 toHexColor(brand)
 ```
 
-`hexColor` 接受 `#RGB` 或 `#RRGGBB` 字符串；`rgb565` 接受 0–65535 的整数。转换函数的参数必须是颜色值。
+`hexColor` accepts `#RGB` or `#RRGGBB`; `rgb565` accepts an integer from 0 to 65535. Conversion functions require a color value.
 
-统计函数提供总体/样本方差和标准差、三类平均值与中位数；`rand`、`randInt` 使用 Web Crypto。
+Statistics include population and sample variance/standard deviation, three kinds of mean, and median. `rand` and `randInt` use Web Crypto.
 
-`solve(f)`、`solve(f, initial)` 或 `solve(f, min, max)` 使用带预算的 Newton-Raphson 数值求根。
+Use `solve(f)`, `solve(f, initial)`, or `solve(f, min, max)` for budgeted Newton–Raphson numerical root finding.
 
-### 与 Calctus 的差异
+### Differences from Calctus
 
-Calcuko 采用自有 tokenizer、AST 和受控解释器，并非 Calctus 语法或函数集的逐项复刻。当前重点覆盖多行依赖、高精度数值、数组/矩阵、bit/SECDED、颜色、编码、统计和数值求根；暂不支持外部脚本、日期时间、绘图，以及 Calctus 的全部内置函数。注释仅允许整行 `//`，表达式内的 `//` 固定表示整数除法。
+Calcuko uses its own tokenizer, AST, and controlled interpreter rather than reproducing every Calctus feature. It currently focuses on multi-line dependencies, high-precision numbers, arrays and matrices, bit operations and SECDED, colors, encoding, statistics, and numerical root finding. External scripts, date/time calculations, plotting, and the complete Calctus built-in function set are not currently supported. Comments must occupy a whole `//` line; `//` inside an expression always means integer division.
 
-| 类型 | 示例 |
+| Category | Examples |
 | :--- | :--- |
-| **常量** | `PI`, `E` |
-| **基础函数** | `abs(x)`, `ceil(x)`, `floor(x)`, `round(x)`, `max(a, b)`, `min(a, b)` |
-| **数学运算** | `sqrt(x)`, `pow(base, exp)`, `exp(x)`, `log(x)` |
-| **三角函数** | `sin(x)`, `cos(x)`, `tan(x)`, `asin(x)`, `acos(x)`, `atan(x)` |
+| **Constants** | `PI`, `E` |
+| **Basic functions** | `abs(x)`, `ceil(x)`, `floor(x)`, `round(x)`, `max(a, b)`, `min(a, b)` |
+| **Math operations** | `sqrt(x)`, `pow(base, exp)`, `exp(x)`, `log(x)` |
+| **Trigonometry** | `sin(x)`, `cos(x)`, `tan(x)`, `asin(x)`, `acos(x)`, `atan(x)` |
 
-## 📦 安装与开发
-
-如果你想本地运行或自行部署：
+## 📦 Install and develop
 
 ```bash
-# 安装依赖
+# Install dependencies
 npm install
 
-# 启动开发服务器
+# Start the development server
 npm run dev
 
-# 构建生产版本 (PWA)
+# Build the production PWA
 npm run build
 
-# 单元测试、类型检查和浏览器冒烟测试
+# Run unit tests, type checks, and browser smoke tests
 npm test
 npm run check
 npm run test:e2e
+```

@@ -30,7 +30,8 @@
 ```
 calcuko/
 ├── AGENTS.md                 # 本文件 - Agent 项目上下文
-├── README.md                 # 项目说明文档
+├── README.md                 # 英文项目说明文档（默认）
+├── README.zh-CN.md           # 中文项目说明文档
 ├── package.json              # 依赖与脚本
 ├── astro.config.mjs          # Astro 配置（含 PWA、Svelte、Tailwind 集成）
 ├── .github/workflows/ci.yml  # GitHub Actions：测试、类型检查、生产构建
@@ -56,6 +57,7 @@ calcuko/
     │   ├── language/                 # 表达式语言 tokenizer、AST、Pratt parser、源码位置类型及测试
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 示例公式和帮助弹窗元数据
+    │   ├── i18n.ts                   # 全局中英文资源、语言检测、错误及函数说明本地化
     │   ├── autocomplete.ts           # CodeMirror 智能补全候选与 Tab 接受逻辑
     │   ├── evaluator.ts              # ⭐ 内置注册、逐行求值和统一 formatter
     │   ├── resultFormatting.ts        # 行级结果格式选项、精度与显示转换
@@ -112,8 +114,9 @@ calcuko/
 - **格式菜单浮层**：菜单渲染为脱离编辑器与结果滚动容器的 fixed 顶层浮层，避免 CodeMirror stacking context 和裁剪冲突
 - **数值模型**：整数为任意精度 BigInt，小数使用 34 位有效数字且 half-even 舍入的 Decimal，`a$b` 为自动约分的精确 Rational；混合运算按 BigInt → Rational → Decimal 提升
 - **语法高亮**：`src/lib/highlight.ts` 与 CodeMirror 装饰层直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符（含逗号等标点）、括号和变量，并以不同颜色区分内置函数与自定义函数；高亮模式按行恢复词法错误，以错误样式显示未知字符和未闭合字符串并继续着色，求值模式仍严格报错
+- **全局 i18n**：支持简体中文与英文；优先读取 `calcuko-locale`，否则按浏览器语言自动选择；Header 使用由集中语言配置驱动的下拉栏切换，便于扩展更多语种；页面元数据、全部 UI、帮助、格式标签、PWA 提示、补全说明及求值错误共享统一语言状态
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
-- **智能补全**：输入标识符时以浮动框提示当前行上方已进入作用域的变量、自定义函数及全部内置函数；内置函数候选显示签名与简要功能说明，Tab 仅在补全激活时接受候选
+- **智能补全**：输入标识符时以浮动框提示当前行上方已进入作用域的变量、自定义函数及全部内置函数；内置函数候选显示签名与简要功能说明，候选出现后 Tab 可立即接受，未激活补全时不消费 Tab
 - **帮助弹窗**：Header 中的「帮助」按钮展示基本语法、函数和常量元数据，支持 Escape 关闭、关闭按钮标签及打开/关闭焦点恢复
 - **编辑器标题栏操作**：载入示例和清空均先确认、写入同一持久化 key，并提供单步撤销
 - **变量快照复制**：变量快照以 button 形式展示 `name = value`，点击通过 `navigator.clipboard.writeText()` 复制值，并显示 2 秒自动消失的「已复制」Toast
@@ -121,6 +124,7 @@ calcuko/
 ### 数据持久化
 - 使用 `localStorage`（key: `calcuko-formulas`）保存用户输入
 - 页面加载时从 localStorage 恢复，无数据则使用内置示例公式
+- 手动语言选择使用 localStorage key `calcuko-locale` 持久化；未保存时自动匹配浏览器首选语言
 - 清除按钮把空文档写入原有 key，保持旧版本存储兼容
 - 空字符串也会从 localStorage 正确恢复；载入示例和清空前要求确认，并可在编辑器标题栏单步撤销
 
@@ -140,6 +144,7 @@ calcuko/
 - **编辑器选区**：文本选中背景使用半透明主题主色（玫瑰粉），保持高亮叠层文字可见
 - **错误行标识**：编辑器以半透明错误色背景和左侧红色边线标记求值失败的整行，未知字符使用红色波浪下划线显示
 - **智能补全浮层**：使用主题 base-200 背景、base-300 边框与圆角阴影，列表与浮层四边保持等量内边距；选中项使用半透明主色，函数和变量图标分别沿用函数紫与变量蓝
+- **语言下拉栏**：选择框及原生选项使用不透明的 base-100 背景、base-content 前景色和明确边框，避免暗色主题下与页面内容混叠
 - **Tailwind v4 语法**：使用 `@import "tailwindcss"` 和 `@plugin "daisyui"` 而非旧版 `@tailwind` 指令
 - **字体大小**：在 `@theme` 块中自定义了 `--text-xs` 到 `--text-6xl`
 
