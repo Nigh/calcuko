@@ -12,7 +12,7 @@
 	import { editorUiField, setEditorUi, syntaxDecorations } from "../lib/editorExtensions";
 	import { calcukoAutocomplete } from "../lib/autocomplete";
 
-	import { constantDescription, detectLocale, functionDescription, setLocale, t, type Locale } from "../lib/i18n";
+	import { constantDescription, detectLocale, functionDescription, localeOptions, setLocale, t, type Locale } from "../lib/i18n";
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 	const APP_VERSION = import.meta.env.PUBLIC_APP_VERSION?.trim() || "dev";
 	const formatStorageKey = "calcuko-result-formats";
@@ -78,7 +78,7 @@
 		if (!window.confirm(t("clearConfirm", {}, locale))) return;
 		undoSource = source; lineFormats = {}; localStorage.removeItem(formatStorageKey); replaceSource("");
 	}
-	function toggleLocale() { locale = locale === "zh-CN" ? "en" : "zh-CN"; setLocale(locale); }
+	function changeLocale() { setLocale(locale); }
 	function undoProgrammaticChange() { if (undoSource !== null) { const previous = source; replaceSource(undoSource); undoSource = previous; } }
 	function openHelp() { helpDialogOpen = true; queueMicrotask(() => helpCloseButton?.focus()); }
 	function closeHelp() { helpDialogOpen = false; queueMicrotask(() => editorView?.focus()); }
@@ -159,7 +159,10 @@
 		</div>
 		
 		<div class="flex items-center gap-2">
-			<button class="btn btn-ghost btn-sm font-mono" type="button" on:click={toggleLocale} aria-label={t("language", {}, locale)} title={t("switchLanguage", {}, locale)}>{locale === "zh-CN" ? "EN" : "中文"}</button>
+			<label class="sr-only" for="locale-select">{t("language", {}, locale)}</label>
+			<select id="locale-select" class="locale-select select select-bordered select-sm w-auto bg-base-100" bind:value={locale} on:change={changeLocale} aria-label={t("language", {}, locale)}>
+				{#each localeOptions as option}<option value={option.value}>{option.label}</option>{/each}
+			</select>
 			<button class="btn btn-ghost btn-sm gap-1 normal-case" type="button" on:click={openHelp}>
 				<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
 				<span class="hidden sm:inline">{t("help", {}, locale)}</span>
@@ -402,6 +405,11 @@
 {/if}
 
 <style>
+	.locale-select,
+	.locale-select option {
+		background-color: var(--color-base-100);
+		color: var(--color-base-content);
+	}
 	:global(.token-comment) { color: #94a3b8; font-style: italic; }
 	:global(.token-number) { color: #f59e0b; }
 	:global(.token-string) { color: #10b981; }

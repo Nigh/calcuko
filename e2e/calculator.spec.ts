@@ -31,7 +31,7 @@ test("detects English, localizes all surfaces, and persists manual switching", a
 	await page.getByRole("button", { name: "Help" }).click();
 	await expect(page.getByRole("heading", { name: "Basics" })).toBeVisible();
 	await page.getByRole("button", { name: "Close help" }).click();
-	await page.getByRole("button", { name: "Language" }).click();
+	await page.getByRole("combobox", { name: "Language" }).selectOption("zh-CN");
 	await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
 	await expect(page.getByRole("button", { name: "帮助" })).toBeVisible();
 	await expect.poll(() => page.evaluate(() => localStorage.getItem("calcuko-locale"))).toBe("zh-CN");
