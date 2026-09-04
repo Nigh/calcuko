@@ -25,6 +25,17 @@ const base = import.meta.env.BASE_URL.endsWith("/")
 		<link rel="manifest" href={`${base}manifest.webmanifest`} />
 		<meta name="generator" content={Astro.generator} />
 		<title>{title}</title>
+		<script is:inline>
+			const savedLocale = localStorage.getItem("calcuko-locale");
+			const initialLocale = savedLocale === "zh-CN" || savedLocale === "en"
+				? savedLocale
+				: navigator.languages.some((language) => language.toLowerCase().startsWith("zh")) ? "zh-CN" : "en";
+			document.documentElement.lang = initialLocale;
+			if (initialLocale === "en") {
+				document.title = "Calcuko - Multi-line Formula Calculator";
+				document.querySelector('meta[name="description"]')?.setAttribute("content", "A web calculator with multi-line variables, live per-line results, and dependency updates.");
+			}
+		</script>
 		<ClientRouter />
 	</head>
 	<body>

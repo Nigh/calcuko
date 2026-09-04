@@ -56,6 +56,7 @@ calcuko/
     │   ├── language/                 # 表达式语言 tokenizer、AST、Pratt parser、源码位置类型及测试
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 示例公式和帮助弹窗元数据
+    │   ├── i18n.ts                   # 全局中英文资源、语言检测、错误及函数说明本地化
     │   ├── autocomplete.ts           # CodeMirror 智能补全候选与 Tab 接受逻辑
     │   ├── evaluator.ts              # ⭐ 内置注册、逐行求值和统一 formatter
     │   ├── resultFormatting.ts        # 行级结果格式选项、精度与显示转换
@@ -112,6 +113,7 @@ calcuko/
 - **格式菜单浮层**：菜单渲染为脱离编辑器与结果滚动容器的 fixed 顶层浮层，避免 CodeMirror stacking context 和裁剪冲突
 - **数值模型**：整数为任意精度 BigInt，小数使用 34 位有效数字且 half-even 舍入的 Decimal，`a$b` 为自动约分的精确 Rational；混合运算按 BigInt → Rational → Decimal 提升
 - **语法高亮**：`src/lib/highlight.ts` 与 CodeMirror 装饰层直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符（含逗号等标点）、括号和变量，并以不同颜色区分内置函数与自定义函数；高亮模式按行恢复词法错误，以错误样式显示未知字符和未闭合字符串并继续着色，求值模式仍严格报错
+- **全局 i18n**：支持简体中文与英文；优先读取 `calcuko-locale`，否则按浏览器语言自动选择，Header 可手动切换；页面元数据、全部 UI、帮助、格式标签、PWA 提示、补全说明及求值错误共享统一语言状态
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
 - **智能补全**：输入标识符时以浮动框提示当前行上方已进入作用域的变量、自定义函数及全部内置函数；内置函数候选显示签名与简要功能说明，Tab 仅在补全激活时接受候选
 - **帮助弹窗**：Header 中的「帮助」按钮展示基本语法、函数和常量元数据，支持 Escape 关闭、关闭按钮标签及打开/关闭焦点恢复
@@ -121,6 +123,7 @@ calcuko/
 ### 数据持久化
 - 使用 `localStorage`（key: `calcuko-formulas`）保存用户输入
 - 页面加载时从 localStorage 恢复，无数据则使用内置示例公式
+- 手动语言选择使用 localStorage key `calcuko-locale` 持久化；未保存时自动匹配浏览器首选语言
 - 清除按钮把空文档写入原有 key，保持旧版本存储兼容
 - 空字符串也会从 localStorage 正确恢复；载入示例和清空前要求确认，并可在编辑器标题栏单步撤销
 

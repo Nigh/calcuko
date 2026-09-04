@@ -128,3 +128,38 @@ dec = 255
 h = hex(dec)
 b = bin(dec)
 o = oct(dec)`;
+export const sampleFormulaEnglish = `Vo = 13
+Vref = 2.5
+R1 = 11
+R2 = 2.87
+R3 = 10
+
+// Unicode identifiers
+radius = 5
+π = PI
+area = π * radius**2
+
+// Emoji identifiers
+😊 = 10
+🔥 = 42
+joy = 😊 * 🔥
+
+// Implicit multiplication: place identifiers directly after numbers
+Omega = 2PI*R1 + 3R2
+
+// SI prefix examples
+R = 10k
+C = 100n
+f = 1/(2PI*R*C)
+
+// Radix literals: 0x hex, 0b binary, leading-zero octal
+hexVal = 0xFF
+binVal = 0b1101
+octVal = 0777
+sum = hexVal + binVal + octVal
+
+// Radix conversion functions: hex(), bin(), oct()
+dec = 255
+h = hex(dec)
+b = bin(dec)
+o = oct(dec)`;

@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from "svelte"
 	import { registerSW } from "virtual:pwa-register"
+	import { getLocale, t, type Locale } from "../lib/i18n"
 
 	let needRefresh = false
 	let offlineReady = false
+	let locale: Locale = getLocale()
 	let updateServiceWorker: (reloadPage?: boolean) => Promise<void>
 
 	const close = () => {
@@ -12,6 +14,8 @@
 	}
 
 	onMount(() => {
+		const localeChanged = (event: Event) => locale = (event as CustomEvent<Locale>).detail
+		window.addEventListener("calcuko-locale-change", localeChanged)
 		updateServiceWorker = registerSW({
 			immediate: true,
 			onNeedRefresh() {
@@ -26,6 +30,7 @@
 				}, 3000) // Auto-hide offline msg
 			},
 		})
+		return () => window.removeEventListener("calcuko-locale-change", localeChanged)
 	})
 </script>
 
@@ -45,7 +50,7 @@
 						d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
 					/></svg
 				>
-				<span>应用已可离线使用。</span>
+				<span>{t("offlineReady", {}, locale)}</span>
 			</div>
 		{/if}
 
@@ -67,20 +72,20 @@
 					></path></svg
 				>
 				<div class="flex flex-col">
-					<span class="font-bold">发现新版本</span>
-					<span class="text-xs">重新加载即可完成更新。</span>
+					<span class="font-bold">{t("updateAvailable", {}, locale)}</span>
+					<span class="text-xs">{t("updateDescription", {}, locale)}</span>
 				</div>
 
 				<div class="flex gap-2">
-					<button class="btn btn-sm btn-ghost" on:click={close} aria-label="关闭更新提示">
-						关闭
+					<button class="btn btn-sm btn-ghost" on:click={close} aria-label={t("closeUpdate", {}, locale)}>
+						{t("close", {}, locale)}
 					</button>
 					<button
 						class="btn btn-sm btn-primary border-white text-white hover:bg-primary-focus hover:border-white"
 						on:click={() => updateServiceWorker(true)}
-						aria-label="重新加载并更新应用"
+						aria-label={t("reloadUpdate", {}, locale)}
 					>
-						重新加载
+						{t("reload", {}, locale)}
 					</button>
 				</div>
 			</div>

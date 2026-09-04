@@ -5,9 +5,36 @@ const setSource = async (page: Page, source: string) => {
 	await editor(page).fill(source);
 };
 
+test.beforeEach(async ({ page }) => {
+	await page.addInitScript(() => localStorage.setItem("calcuko-locale", "zh-CN"));
+});
+
 test("shows the build version beside the title", async ({ page }) => {
 	await page.goto("./");
 	await expect(page.getByLabel(/^版本 /)).toHaveText(/^(?:dev|v\d+\.\d+\.\d+)$/);
+});
+
+test("detects English, localizes all surfaces, and persists manual switching", async ({ page }) => {
+	await page.addInitScript(() => localStorage.removeItem("calcuko-locale"));
+	await page.goto("./");
+	await expect(page.locator("html")).toHaveAttribute("lang", "en");
+	await expect(editor(page)).toContainText("Unicode identifiers");
+	await expect(page).toHaveTitle("Calcuko - Multi-line Formula Calculator");
+	await expect(page.getByRole("button", { name: "Help" })).toBeVisible();
+
+	await setSource(page, "missing");
+	await expect(page.getByText("Line 1, column 1: Undefined identifier “missing”")).toBeVisible();
+	await setSource(page, "sq");
+	await expect(page.locator(".cm-completionLabel", { hasText: "sqrt" })).toBeVisible();
+	await expect(page.locator(".cm-completionLabel", { hasText: "sqrt" }).locator("..").locator(".cm-completionDetail")).toContainText("Square root");
+
+	await page.getByRole("button", { name: "Help" }).click();
+	await expect(page.getByRole("heading", { name: "Basics" })).toBeVisible();
+	await page.getByRole("button", { name: "Close help" }).click();
+	await page.getByRole("button", { name: "Language" }).click();
+	await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+	await expect(page.getByRole("button", { name: "帮助" })).toBeVisible();
+	await expect.poll(() => page.evaluate(() => localStorage.getItem("calcuko-locale"))).toBe("zh-CN");
 });
 
 test("evaluates, persists, and restores formulas", async ({ page }) => {
