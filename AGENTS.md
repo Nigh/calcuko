@@ -18,7 +18,7 @@
 |---|---|---|
 | 框架 | Astro | ^5.18.1 |
 | UI 组件 | Svelte | ^5.55.2 |
-| 编辑器 | CodeMirror 6 | codemirror ^6.0.2 |
+| 编辑器 | CodeMirror 6 | codemirror ^6.0.2, @codemirror/autocomplete ^6.20.3 |
 | 样式 | Tailwind CSS v4 + DaisyUI v5 | @tailwindcss/vite ^4.2.2, daisyui ^5.5.19 |
 | 语言 | TypeScript | ^5.9.3 |
 | 高精度数值 | decimal.js | ^10.6.0 |
@@ -56,6 +56,7 @@ calcuko/
     │   ├── language/                 # 表达式语言 tokenizer、AST、Pratt parser、源码位置类型及测试
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 示例公式和帮助弹窗元数据
+    │   ├── autocomplete.ts           # CodeMirror 智能补全候选与 Tab 接受逻辑
     │   ├── evaluator.ts              # ⭐ 内置注册、逐行求值和统一 formatter
     │   ├── resultFormatting.ts        # 行级结果格式选项、精度与显示转换
     │   ├── editorExtensions.ts         # CodeMirror 高亮、错误/hover 行与高度 spacer
@@ -112,6 +113,7 @@ calcuko/
 - **数值模型**：整数为任意精度 BigInt，小数使用 34 位有效数字且 half-even 舍入的 Decimal，`a$b` 为自动约分的精确 Rational；混合运算按 BigInt → Rational → Decimal 提升
 - **语法高亮**：`src/lib/highlight.ts` 与 CodeMirror 装饰层直接消费求值语言 tokenizer 的 token，支持注释、字符串、数值（含 SI 与进制）、运算符（含逗号等标点）、括号和变量，并以不同颜色区分内置函数与自定义函数；高亮模式按行恢复词法错误，以错误样式显示未知字符和未闭合字符串并继续着色，求值模式仍严格报错
 - **括号匹配**：光标定位时高亮配对括号 `()[]{}`
+- **智能补全**：输入标识符时以浮动框提示当前行上方已进入作用域的变量、自定义函数及全部内置函数；内置函数候选显示签名与简要功能说明，Tab 仅在补全激活时接受候选
 - **帮助弹窗**：Header 中的「帮助」按钮展示基本语法、函数和常量元数据，支持 Escape 关闭、关闭按钮标签及打开/关闭焦点恢复
 - **编辑器标题栏操作**：载入示例和清空均先确认、写入同一持久化 key，并提供单步撤销
 - **变量快照复制**：变量快照以 button 形式展示 `name = value`，点击通过 `navigator.clipboard.writeText()` 复制值，并显示 2 秒自动消失的「已复制」Toast
@@ -137,6 +139,7 @@ calcuko/
   - 内置函数 `#a78bfa`（淡紫）、自定义函数 `#22d3ee`（青色）
 - **编辑器选区**：文本选中背景使用半透明主题主色（玫瑰粉），保持高亮叠层文字可见
 - **错误行标识**：编辑器以半透明错误色背景和左侧红色边线标记求值失败的整行，未知字符使用红色波浪下划线显示
+- **智能补全浮层**：使用主题 base-200 背景、base-300 边框与圆角阴影，列表与浮层四边保持等量内边距；选中项使用半透明主色，函数和变量图标分别沿用函数紫与变量蓝
 - **Tailwind v4 语法**：使用 `@import "tailwindcss"` 和 `@plugin "daisyui"` 而非旧版 `@tailwind` 指令
 - **字体大小**：在 `@theme` 块中自定义了 `--text-xs` 到 `--text-6xl`
 

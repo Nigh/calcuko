@@ -10,6 +10,7 @@
 	import { isMatrix } from "../lib/language/matrix";
 	import { formatOptions, formatResult, type FormatOption, type ResultFormat, type ResultValueKind } from "../lib/resultFormatting";
 	import { editorUiField, setEditorUi, syntaxDecorations } from "../lib/editorExtensions";
+	import { calcukoAutocomplete } from "../lib/autocomplete";
 
 	const BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "");
 	const APP_VERSION = import.meta.env.PUBLIC_APP_VERSION?.trim() || "dev";
@@ -116,7 +117,7 @@
 		} catch { localStorage.removeItem(formatStorageKey); }
 		editorView = new EditorView({
 			parent: editorHost,
-			state: EditorState.create({ doc: source, extensions: [basicSetup, editorUiField, syntaxDecorations, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, ".cm-line": { minHeight: "24px", lineHeight: "24px", padding: "0 16px" }, ".cm-content": { padding: "16px 0" }, ".cm-gutters": { backgroundColor: "color-mix(in oklab, var(--color-base-200) 40%, transparent)", borderRight: "1px solid var(--color-base-300)" }, ".cm-activeLine": { backgroundColor: "color-mix(in oklab, var(--color-primary) 10%, transparent)" }, ".cm-activeLineGutter": { backgroundColor: "color-mix(in oklab, var(--color-primary) 12%, transparent)" }, ".cm-result-hover-line": { backgroundColor: "color-mix(in oklab, var(--color-primary) 22%, transparent) !important", boxShadow: "inset 3px 0 var(--color-primary)" }, ".cm-error-line": { backgroundColor: "color-mix(in oklab, var(--color-error) 18%, transparent)", boxShadow: "inset 3px 0 var(--color-error)" } }) , EditorView.updateListener.of((update) => {
+			state: EditorState.create({ doc: source, extensions: [basicSetup, calcukoAutocomplete, editorUiField, syntaxDecorations, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, ".cm-line": { minHeight: "24px", lineHeight: "24px", padding: "0 16px" }, ".cm-content": { padding: "16px 0" }, ".cm-gutters": { backgroundColor: "color-mix(in oklab, var(--color-base-200) 40%, transparent)", borderRight: "1px solid var(--color-base-300)" }, ".cm-activeLine": { backgroundColor: "color-mix(in oklab, var(--color-primary) 10%, transparent)" }, ".cm-activeLineGutter": { backgroundColor: "color-mix(in oklab, var(--color-primary) 12%, transparent)" }, ".cm-result-hover-line": { backgroundColor: "color-mix(in oklab, var(--color-primary) 22%, transparent) !important", boxShadow: "inset 3px 0 var(--color-primary)" }, ".cm-error-line": { backgroundColor: "color-mix(in oklab, var(--color-error) 18%, transparent)", boxShadow: "inset 3px 0 var(--color-error)" } }) , EditorView.updateListener.of((update) => {
 				if (update.docChanged) { const next = update.state.doc.toString(); reconcileFormats(source, next); source = next; localStorage.setItem(storageKey, source); persistFormats(); }
 				if (update.docChanged || update.selectionSet) activeLine = update.state.doc.lineAt(update.state.selection.main.head).number;
 				if (update.selectionSet) queueMicrotask(dispatchEditorUi);
@@ -421,6 +422,15 @@
 	:global(.cm-line-spacer-active) { background: color-mix(in oklab, var(--color-primary) 10%, transparent); }
 	:global(.cm-line-spacer-hover) { background: color-mix(in oklab, var(--color-primary) 22%, transparent); box-shadow: inset 3px 0 var(--color-primary); }
 	:global(.cm-line-spacer-error) { background: color-mix(in oklab, var(--color-error) 18%, transparent); box-shadow: inset 3px 0 var(--color-error); }
+	:global(.cm-tooltip.cm-tooltip-autocomplete) { box-sizing: border-box; padding: 0.5rem; background: var(--color-base-200); color: var(--color-base-content); border: 1px solid var(--color-base-300); border-radius: var(--radius-box); box-shadow: 0 16px 40px rgb(0 0 0 / 0.45), 0 0 0 1px color-mix(in oklab, var(--color-primary) 8%, transparent); overflow: hidden; }
+	:global(.cm-tooltip-autocomplete > ul) { box-sizing: border-box; min-width: 15rem; max-height: 15rem; height: auto; padding: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+	:global(.cm-tooltip-autocomplete > ul > li) { min-height: 2rem; padding: 0.3rem 0.625rem; border-radius: calc(var(--radius-field) / 2); color: color-mix(in oklab, var(--color-base-content) 82%, transparent); }
+	:global(.cm-tooltip-autocomplete > ul > li[aria-selected]) { background: color-mix(in oklab, var(--color-primary) 22%, var(--color-base-200)) !important; color: var(--color-base-content) !important; }
+	:global(.cm-completionLabel) { font-weight: 600; }
+	:global(.cm-completionMatchedText) { color: var(--color-primary); font-weight: 800; text-decoration: none; }
+	:global(.cm-completionDetail) { color: color-mix(in oklab, var(--color-base-content) 48%, transparent); font-style: normal; margin-left: 1rem; }
+	:global(.cm-completionIcon-function::after) { color: #a78bfa; }
+	:global(.cm-completionIcon-variable::after) { color: #0ea5e9; }
 
 	div::-webkit-scrollbar {
 		display: none;

@@ -40,6 +40,29 @@ test("shows a visible themed editor cursor", async ({ page }) => {
 	await expect(cursor).toHaveCSS("border-left-color", "rgb(251, 113, 133)");
 });
 
+test("autocompletes earlier symbols and built-ins with Tab without consuming a normal Tab", async ({ page }) => {
+	await page.goto("./");
+	await setSource(page, "total = 42\nfn triple(value)=value*3\ntot");
+	await expect(page.locator(".cm-tooltip-autocomplete")).toBeVisible();
+	await expect(page.locator(".cm-completionLabel", { hasText: "total" })).toBeVisible();
+	await expect(page.locator(".cm-tooltip-autocomplete")).toHaveCSS("border-top-width", "1px");
+	await expect(page.locator(".cm-tooltip-autocomplete")).toHaveCSS("border-radius", "16px");
+	const variableIconColor = await page.locator(".cm-completionIcon-variable").first().evaluate((icon) => getComputedStyle(icon, "::after").color);
+	await expect(page.locator(".cm-tooltip-autocomplete")).toHaveCSS("padding", "8px");
+	expect(variableIconColor).toBe("rgb(14, 165, 233)");
+	await editor(page).press("Tab");
+	await expect(page.locator(".cm-line").nth(2)).toHaveText("total");
+
+	await editor(page).press("Enter");
+	await editor(page).pressSequentially("sq");
+	await expect(page.locator(".cm-completionLabel", { hasText: "sqrt" })).toBeVisible();
+	await expect(page.locator(".cm-completionLabel", { hasText: "sqrt" }).locator("..").locator(".cm-completionDetail")).toContainText("平方根");
+	await editor(page).press("Escape");
+	const before = await editor(page).textContent();
+	await editor(page).press("Tab");
+	await expect(editor(page)).toHaveText(before ?? "");
+});
+
 test("shows matrices, errors, and color previews", async ({ page }) => {
 	await page.goto("./");
 	await setSource(page, "missing\nmatrix([[1,2],[3,4]])\nrgb(255,0,0)");
