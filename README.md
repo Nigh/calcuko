@@ -27,6 +27,7 @@ Calcuko is a lightweight, responsive multi-line formula calculator for engineers
 - **🛡️ Controlled evaluation:** A tokenizer, AST parser, and interpreter evaluate formulas without executing arbitrary JavaScript.
 - **🔢 High-precision numbers:** Integers use arbitrary-precision BigInt, decimals use 34-digit Decimal arithmetic, and `2$3` creates an exact, automatically reduced fraction.
 - **📊 Readable results:** Matrices render as tables, while numeric and color results support selectable formats, precision, radix, SI notation, and color spaces.
+- **📐 Optional dimensions:** A header switch enables high-precision physical units, dimensional checks, smart simplification, and explicit conversions inspired by [Numbat](https://github.com/sharkdp/numbat).
 
 ## 🚀 Quick start
 
@@ -74,6 +75,30 @@ square(12)
 scale = (value, factor) => value * factor
 scale(10, 3)
 ```
+
+### 5. Physical dimensions and units
+
+Enable **Units** in the header, then use spaced unit expressions and `->` conversions:
+
+```javascript
+speed = 120 km/h
+speed -> mph
+force = 2 kg * 3 m/s^2
+15 km/h * 30 min
+25 degC -> degF
+```
+
+Dimensioned values participate in the same live variable workflow:
+
+```javascript
+radius = 5 m
+π = PI
+area = π * radius**2     // 78.5398163397448 ㎡
+```
+
+Addition and comparison require compatible dimensions, while multiplication, division, powers, arrays, matrices, statistics, and suitable math functions propagate dimensions. Results keep useful input units or simplify to common derived units. The switch defaults to off on first use and then restores the saved choice.
+
+In dimension mode, `**` raises the complete quantity while `^` writes a unit exponent: `10 m**2` is `(10 m)**2 = 100㎡`, whereas `10 m^2` is `10㎡`. Outside dimension mode, `^` remains bitwise XOR. `10m` is still the numeric milli suffix; write `10 m` for ten metres. Supported units focus on scientific and engineering use (SI, common US/Imperial and nautical, astronomical, atomic/nuclear, and digital-information units); currencies and unrelated counting/display/humorous units are excluded.
 
 Destructuring assigns an array to several variables at once: `[a, b, c] = [10, 20, 30]`. Both sides must have the same length; otherwise, no target is changed.
 

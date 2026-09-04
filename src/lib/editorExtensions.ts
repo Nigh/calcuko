@@ -70,18 +70,18 @@ export const editorUiField = StateField.define<UiFieldValue>({
 	provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
 });
 
-const buildSyntax = (state: EditorState): DecorationSet => {
+const buildSyntax = (state: EditorState, dimensions: boolean): DecorationSet => {
 	const ranges: Array<ReturnType<Decoration["range"]>> = [];
 	const tokens = tokenize(state.doc.toString(), { tolerant: true });
 	for (const [index, token] of tokens.entries()) {
 		if (token.kind === "eof") continue;
-		const css = syntaxTokenClass(token, tokens[index + 1]);
+		const css = syntaxTokenClass(token, tokens[index + 1], dimensions);
 		if (css) ranges.push(Decoration.mark({ class: `token-${css}` }).range(token.span.start.offset, token.span.end.offset));
 	}
 	return Decoration.set(ranges, true);
 };
-export const syntaxDecorations = StateField.define<DecorationSet>({
-	create: buildSyntax,
-	update: (value, transaction) => (transaction.docChanged ? buildSyntax(transaction.state) : value),
+export const syntaxDecorations = (dimensions = false) => StateField.define<DecorationSet>({
+	create: (state) => buildSyntax(state, dimensions),
+	update: (value, transaction) => (transaction.docChanged ? buildSyntax(transaction.state, dimensions) : value),
 	provide: (field) => EditorView.decorations.from(field),
 });

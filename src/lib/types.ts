@@ -7,6 +7,6 @@ export type LineResult = {
 	column?: number;
 	preview?: { type: "color"; css: string };
 	value?: unknown;
-	valueKind?: "bigint" | "decimal" | "rational" | "color" | "matrix" | "other";
+	valueKind?: "bigint" | "decimal" | "rational" | "quantity" | "color" | "matrix" | "other";
 	hasSi?: boolean;
 };

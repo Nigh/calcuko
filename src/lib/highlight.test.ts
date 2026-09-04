@@ -37,4 +37,9 @@ describe("highlight", () => {
 	it("escapes source text", () => {
 		expect(highlight('"<script>"', 0, null)).not.toContain("<script>");
 	});
+
+	it("classifies units only in dimension mode", () => {
+		expect(highlight("3 km",0,null)).not.toContain("token-unit");
+		expect(highlight("3 km",0,null,true)).toContain('<span class="token-unit">km<\/span>');
+	});
 });

@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { basicSetup } from "codemirror";
-	import { EditorState } from "@codemirror/state";
+	import { Compartment, EditorState } from "@codemirror/state";
 	import { EditorView } from "@codemirror/view";
 	import { evaluateSource, formatValue } from "../lib/evaluator";
-	import { storageKey, sampleFormula, sampleFormulaEnglish, mathFunctions, mathConstants } from "../lib/constants";
+	import { dimensionStorageKey, storageKey, sampleFormula, sampleFormulaEnglish, mathFunctions, mathConstants } from "../lib/constants";
 	import type { LineResult } from "../lib/types";
 	import { isColorValue } from "../lib/builtins/colors";
 	import { isMatrix } from "../lib/language/matrix";
@@ -38,6 +38,9 @@
 	let showCopyToast = false;
 	let copyToastText = "";
 	let undoSource: string | null = null;
+	let dimensionsEnabled = false;
+	const autocompleteCompartment = new Compartment();
+	const syntaxCompartment = new Compartment();
 
 	const persistFormats = () => localStorage.setItem(formatStorageKey, JSON.stringify({ source, formats: lineFormats }));
 	function reconcileFormats(oldSource: string, nextSource: string) {
@@ -79,6 +82,10 @@
 		undoSource = source; lineFormats = {}; localStorage.removeItem(formatStorageKey); replaceSource("");
 	}
 	function changeLocale() { setLocale(locale); }
+	function changeDimensions() {
+		localStorage.setItem(dimensionStorageKey, String(dimensionsEnabled));
+		editorView?.dispatch({ effects: [autocompleteCompartment.reconfigure(calcukoAutocomplete(dimensionsEnabled)), syntaxCompartment.reconfigure(syntaxDecorations(dimensionsEnabled))] });
+	}
 	function undoProgrammaticChange() { if (undoSource !== null) { const previous = source; replaceSource(undoSource); undoSource = previous; } }
 	function openHelp() { helpDialogOpen = true; queueMicrotask(() => helpCloseButton?.focus()); }
 	function closeHelp() { helpDialogOpen = false; queueMicrotask(() => editorView?.focus()); }
@@ -115,6 +122,7 @@
 
 	onMount(() => {
 		locale = detectLocale(); setLocale(locale, false);
+		dimensionsEnabled = localStorage.getItem(dimensionStorageKey) === "true";
 		const saved = localStorage.getItem(storageKey); source = saved !== null ? saved : locale === "zh-CN" ? sampleFormula : sampleFormulaEnglish;
 		try {
 			const persisted = JSON.parse(localStorage.getItem(formatStorageKey) ?? "null");
@@ -122,7 +130,7 @@
 		} catch { localStorage.removeItem(formatStorageKey); }
 		editorView = new EditorView({
 			parent: editorHost,
-			state: EditorState.create({ doc: source, extensions: [basicSetup, calcukoAutocomplete, editorUiField, syntaxDecorations, EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, ".cm-line": { minHeight: "24px", lineHeight: "24px", padding: "0 16px" }, ".cm-content": { padding: "16px 0" }, ".cm-gutters": { backgroundColor: "color-mix(in oklab, var(--color-base-200) 40%, transparent)", borderRight: "1px solid var(--color-base-300)" }, ".cm-activeLine": { backgroundColor: "color-mix(in oklab, var(--color-primary) 10%, transparent)" }, ".cm-activeLineGutter": { backgroundColor: "color-mix(in oklab, var(--color-primary) 12%, transparent)" }, ".cm-result-hover-line": { backgroundColor: "color-mix(in oklab, var(--color-primary) 22%, transparent) !important", boxShadow: "inset 3px 0 var(--color-primary)" }, ".cm-error-line": { backgroundColor: "color-mix(in oklab, var(--color-error) 18%, transparent)", boxShadow: "inset 3px 0 var(--color-error)" } }) , EditorView.updateListener.of((update) => {
+			state: EditorState.create({ doc: source, extensions: [basicSetup, autocompleteCompartment.of(calcukoAutocomplete(dimensionsEnabled)), editorUiField, syntaxCompartment.of(syntaxDecorations(dimensionsEnabled)), EditorView.theme({ "&": { height: "100%" }, ".cm-scroller": { overflow: "auto", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, ".cm-line": { minHeight: "24px", lineHeight: "24px", padding: "0 16px" }, ".cm-content": { padding: "16px 0" }, ".cm-gutters": { backgroundColor: "color-mix(in oklab, var(--color-base-200) 40%, transparent)", borderRight: "1px solid var(--color-base-300)" }, ".cm-activeLine": { backgroundColor: "color-mix(in oklab, var(--color-primary) 10%, transparent)" }, ".cm-activeLineGutter": { backgroundColor: "color-mix(in oklab, var(--color-primary) 12%, transparent)" }, ".cm-result-hover-line": { backgroundColor: "color-mix(in oklab, var(--color-primary) 22%, transparent) !important", boxShadow: "inset 3px 0 var(--color-primary)" }, ".cm-error-line": { backgroundColor: "color-mix(in oklab, var(--color-error) 18%, transparent)", boxShadow: "inset 3px 0 var(--color-error)" } }) , EditorView.updateListener.of((update) => {
 				if (update.docChanged) { const next = update.state.doc.toString(); reconcileFormats(source, next); source = next; localStorage.setItem(storageKey, source); persistFormats(); }
 				if (update.docChanged || update.selectionSet) activeLine = update.state.doc.lineAt(update.state.selection.main.head).number;
 				if (update.selectionSet) queueMicrotask(dispatchEditorUi);
@@ -135,7 +143,7 @@
 	});
 
 	$: {
-		const result = evaluateSource(source, locale); lines = result.lines; lineResults = result.lineResults; variableSnapshot = result.variableSnapshot;
+		const result = evaluateSource(source, locale, { dimensions: dimensionsEnabled }); lines = result.lines; lineResults = result.lineResults; variableSnapshot = result.variableSnapshot;
 		cleanFormats();
 		queueMicrotask(dispatchEditorUi);
 	}
@@ -159,6 +167,10 @@
 		</div>
 		
 		<div class="flex items-center gap-2">
+			<label class="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-xs font-medium text-base-content/70" title={t("dimensionsTitle", {}, locale)}>
+				<span class="hidden md:inline">{t("dimensions", {}, locale)}</span>
+				<input class="toggle toggle-primary toggle-sm" type="checkbox" bind:checked={dimensionsEnabled} on:change={changeDimensions} aria-label={t("dimensions", {}, locale)} />
+			</label>
 			<label class="sr-only" for="locale-select">{t("language", {}, locale)}</label>
 			<select id="locale-select" class="locale-select select select-bordered select-sm w-auto bg-base-100" bind:value={locale} on:change={changeLocale} aria-label={t("language", {}, locale)}>
 				{#each localeOptions as option}<option value={option.value}>{option.label}</option>{/each}
@@ -357,6 +369,10 @@
 							<span class="text-primary font-bold">8.</span>
 							<span>{@html t("helpRadix", { hex: helpCode("0xFF"), bin: helpCode("0b1010"), oct: helpCode("077"), functions: [helpCode("hex()"), helpCode("bin()"), helpCode("oct()")].join(" ") }, locale)}</span>
 						</li>
+						<li class="flex gap-2">
+							<span class="text-primary font-bold">9.</span>
+							<span>{@html t("helpDimensions", { codes: [helpCode("3 km"), helpCode("9.8 m/s^2"), helpCode("120 km/h -> mph")].join(" "), power: helpCode("10 m**2 → 100㎡"), unitPower: helpCode("10 m^2 → 10㎡"), milli: helpCode("10m"), meter: helpCode("10 m") }, locale)}</span>
+						</li>
 					</ul>
 				</div>
 
@@ -418,6 +434,7 @@
 	:global(.token-variable) { color: #0ea5e9; }
 	:global(.token-builtin-function) { color: #a78bfa; font-weight: 600; }
 	:global(.token-user-function) { color: #22d3ee; font-weight: 600; }
+	:global(.token-unit) { color: #34d399; font-weight: 600; }
 	:global(.token-unknown) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
 	:global(.token-error) { color: var(--color-error); font-weight: bold; text-decoration: underline wavy; }
 

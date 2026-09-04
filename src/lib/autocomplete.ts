@@ -5,6 +5,7 @@ import { mathContext } from "./evaluator";
 import { mathFunctions } from "./constants";
 import { functionDescription, t } from "./i18n";
 import { parse } from "./language/parser";
+import { unitNames } from "./language/units";
 
 const identifierBeforeCursor = /(?:[\p{ID_Start}$]|\p{Extended_Pictographic})(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})*$/u;
 
@@ -13,7 +14,7 @@ const builtinCompletions: Completion[] = Object.entries(mathContext)
 	.map(([label]) => ({ label, type: "function", boost: 0 }))
 	.sort((left, right) => left.label.localeCompare(right.label));
 
-export function completionOptions(source: string, cursor: number): Completion[] {
+export function completionOptions(source: string, cursor: number, dimensions = false): Completion[] {
 	const lineStart = source.lastIndexOf("\n", Math.max(0, cursor - 1)) + 1;
 	const options = new Map<string, Completion>();
 
@@ -37,20 +38,21 @@ export function completionOptions(source: string, cursor: number): Completion[] 
 	for (const option of builtinCompletions) {
 		if (!options.has(option.label)) options.set(option.label, { ...option, detail: functionDescription(option.label, mathFunctions[option.label] ?? t("builtinFunction")) });
 	}
+	if (dimensions) for (const label of unitNames()) if (!options.has(label)) options.set(label, { label, type: "constant", detail: t("physicalUnit"), boost: 0 });
 	return [...options.values()];
 }
 
-export function calcukoCompletionSource(context: CompletionContext): CompletionResult | null {
+export function calcukoCompletionSource(context: CompletionContext, dimensions = false): CompletionResult | null {
 	const word = context.matchBefore(identifierBeforeCursor);
 	if (!word && !context.explicit) return null;
 	return {
 		from: word?.from ?? context.pos,
-		options: completionOptions(context.state.doc.toString(), context.pos),
+		options: completionOptions(context.state.doc.toString(), context.pos, dimensions),
 		validFor: identifierBeforeCursor,
 	};
 }
 
-export const calcukoAutocomplete = [
-	autocompletion({ override: [calcukoCompletionSource], activateOnTyping: true, interactionDelay: 0 }),
+export const calcukoAutocomplete = (dimensions = false) => [
+	autocompletion({ override: [(context) => calcukoCompletionSource(context, dimensions)], activateOnTyping: true, interactionDelay: 0 }),
 	Prec.highest(keymap.of([{ key: "Tab", run: acceptCompletion }])),
 ];

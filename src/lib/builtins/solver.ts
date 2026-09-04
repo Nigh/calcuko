@@ -1,6 +1,7 @@
 import Decimal from "decimal.js";
 import { invokeUserFunction, isUserFunction, type RuntimeValue } from "../language/interpreter";
 import { isNumericValue, toDecimal, type NumericValue } from "../language/numeric";
+import { Quantity, isQuantity, sameDimension } from "../language/units";
 
 const MAX_ITERATIONS=100, MAX_EVALUATIONS=25_000;
 const TOLERANCE=new Decimal("1e-28"), RESIDUAL_TOLERANCE=new Decimal("1e-14"), ROOT_MERGE=new Decimal("1e-12"), DERIVATIVE_STEP=new Decimal("1e-8"), MIN_DERIVATIVE=new Decimal("1e-30");
@@ -26,6 +27,11 @@ export function solveRoots(fn:RuntimeValue, initial?:NumericValue, maximum?:Nume
 }
 
 export const solverBuiltins={solve:(fn:RuntimeValue,initial?:RuntimeValue,maximum?:RuntimeValue)=>{
+	if(isQuantity(initial)){
+		if(maximum!==undefined&&(!isQuantity(maximum)||!sameDimension(initial.dimension,maximum.dimension)))throw new Error("solve 区间端点的量纲必须一致");
+		const adapter=(x:RuntimeValue)=>{if(!isNumericValue(x))throw new Error("solve 内部参数无效");const result=callable(fn,[new Quantity(x,initial.dimension,initial.displayUnit,initial.hints)]);if(!isQuantity(result))throw new Error("量纲 solve 函数必须返回量纲值");return result.value;};
+		return solveRoots(adapter,initial.value,isQuantity(maximum)?maximum.value:undefined).map(root=>new Quantity(root,initial.dimension,initial.displayUnit,initial.hints));
+	}
 	if(initial!==undefined&&!isNumericValue(initial))throw new Error("solve 初值必须是数值");if(maximum!==undefined&&!isNumericValue(maximum))throw new Error("solve 上界必须是数值");
 	return solveRoots(fn,initial as NumericValue|undefined,maximum as NumericValue|undefined);
 }};
