@@ -15,8 +15,9 @@ test("shows the build version beside the title", async ({ page }) => {
 });
 
 test("dimension switch defaults off, recalculates, and persists the choice", async ({ page }) => {
-	await page.addInitScript(() => localStorage.removeItem("calcuko-dimensions"));
 	await page.goto("./");
+	await page.evaluate(() => localStorage.removeItem("calcuko-dimensions"));
+	await page.reload();
 	await setSource(page, "120 km/h -> mph");
 	await expect(page.locator('[data-result-line="1"]')).toContainText("量纲计算模式未启用");
 	const toggle=page.getByRole("checkbox",{name:"量纲"});

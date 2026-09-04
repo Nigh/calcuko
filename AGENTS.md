@@ -37,7 +37,7 @@ calcuko/
 ├── .github/workflows/ci.yml  # GitHub Actions：测试、类型检查、生产构建
 ├── playwright.config.ts      # Playwright 生产预览冒烟测试配置
 ├── vitest.config.ts          # 单元测试范围（排除 e2e 与构建目录）
-├── e2e/                      # 编辑器、持久化、错误、颜色、撤销端到端测试
+├── e2e/                      # 编辑器、量纲开关持久化、错误、颜色、撤销端到端测试
 ├── svelte.config.js          # Svelte 配置
 ├── tsconfig.json             # TypeScript 配置（extends astro/tsconfigs/strict）
 ├── assets/
