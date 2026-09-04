@@ -3,21 +3,24 @@ import { LanguageError, type SourceSpan, type Token } from "./token";
 import { tokenize } from "./tokenizer";
 
 const precedence: Record<string, number> = {
+	"->": 0,
 	"||": 1, "&&": 2, "|": 3, "^": 4, "&": 5,
 	"==": 6, "!=": 6, ">": 7, ">=": 7, "<": 7, "<=": 7,
 	"..": 8, "..=": 8, "<<": 8, ">>": 8, "+": 9, "-": 9, "*": 10, "/": 10, "//": 10, "%": 10, "$": 10,
 	"**": 11,
 };
 
+export type ParserOptions = { dimensions?: boolean };
+
 const mergeSpan = (start: SourceSpan, end: SourceSpan): SourceSpan => ({ start: start.start, end: end.end });
 
-export function parse(source: string): Statement {
-	return new Parser(tokenize(source)).parseStatement();
+export function parse(source: string, options: ParserOptions = {}): Statement {
+	return new Parser(tokenize(source), options).parseStatement();
 }
 
 export class Parser {
 	private current = 0;
-	constructor(private readonly tokens: Token[]) {}
+	constructor(private readonly tokens: Token[], private readonly options: ParserOptions = {}) {}
 
 	parseStatement(): Statement {
 		while (this.peek().kind === "comment") this.advance();
@@ -77,11 +80,12 @@ export class Parser {
 		while (true) {
 			const token = this.peek();
 			const implicit = this.startsPrimary(token);
-			const operator = implicit ? "*" : token.kind === "operator" ? token.lexeme : "";
-			const level = precedence[operator];
+			const sourceOperator = implicit ? "*" : token.kind === "operator" ? token.lexeme : "";
+			const operator = this.options.dimensions && sourceOperator === "^" ? "**" : sourceOperator;
+			const level = implicit && this.options.dimensions ? 11 : sourceOperator === "^" && this.options.dimensions ? 12 : precedence[sourceOperator];
 			if (level === undefined || level < minPrecedence) break;
 			if (!implicit) this.advance();
-			const right = this.parseExpression(operator === "**" ? level : level + 1);
+			const right = this.parseExpression(operator === "**" && !this.options.dimensions ? level : level + 1);
 			left = {
 				kind: "binary", operator, left, right, implicit,
 				span: mergeSpan(left.span, right.span),

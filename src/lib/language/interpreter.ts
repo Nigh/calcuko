@@ -1,17 +1,25 @@
 import type { Expression, Statement } from "./ast";
 import { LanguageError, type SourceSpan } from "./token";
 import Decimal from "decimal.js";
-import { numericBinary, parseNumeric, toBigIntExact, type NumericValue } from "./numeric";
-import { createRange } from "./ranges";
+import { numericBinary, parseNumeric, toBigIntExact, toDecimal, type NumericValue } from "./numeric";
+import { createArithmeticRange } from "./ranges";
 import { Matrix, isMatrix, matrixBinary } from "./matrix";
 import type { ColorValue } from "../builtins/colors";
+import { Quantity, UnitValue, isKnownUnitName, isQuantity, isUnitValue, quantityBinary } from "./units";
 
-export type RuntimeValue = NumericValue | Matrix | ColorValue | RuntimeRecord | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
+export type RuntimeValue = NumericValue | Quantity | UnitValue | Matrix | ColorValue | RuntimeRecord | string | boolean | RuntimeValue[] | BuiltinFunction | UserFunction | null;
 // Built-ins are adapted at the registry boundary; permissive parameters allow
 // native Math functions while call results are still validated by the runtime.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type BuiltinFunction = (...args: any[]) => RuntimeValue;
 export type RuntimeScope = Record<string, RuntimeValue>;
+const dimensionalScopes = new WeakSet<object>();
+export const enableDimensions = (scope: RuntimeScope) => { dimensionalScopes.add(scope); };
+const dimensionsEnabled = (scope: RuntimeScope): boolean => {
+	let current: object | null = scope;
+	while (current) { if (dimensionalScopes.has(current)) return true; current = Object.getPrototypeOf(current); }
+	return false;
+};
 export class RuntimeRecord {
 	readonly entries: Readonly<Record<string, RuntimeValue>>;
 	constructor(entries: Record<string, RuntimeValue>) { this.entries = Object.freeze({ ...entries }); }
@@ -57,34 +65,50 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 		case "number": return parseNumeric(expression.raw);
 		case "string": return expression.value;
 		case "identifier":
-			if (!(expression.name in scope)) return runtimeError("UNKNOWN_IDENTIFIER", `未定义标识符“${expression.name}”`, expression.span);
+			if (!(expression.name in scope)) {
+				if (isKnownUnitName(expression.name) && !dimensionsEnabled(scope)) return runtimeError("DIMENSIONS_DISABLED", "量纲计算模式未启用", expression.span);
+				return runtimeError("UNKNOWN_IDENTIFIER", `未定义标识符“${expression.name}”`, expression.span);
+			}
 			return scope[expression.name];
 		case "array": return expression.elements.map((element) => evaluateExpression(element, scope));
 		case "lambda": return { kind: "userFunction", parameters: expression.parameters, body: expression.body, closure: scope };
 		case "unary": {
 			const operand = evaluateExpression(expression.operand, scope);
 			if (expression.operator === "!") return !truthy(operand);
-			const number = requireNumeric(operand, expression.span);
+			const number = requireArithmetic(operand, expression.span);
+			if (isUnitValue(number)) return runtimeError("EXPECTED_NUMBER", "一元运算符不能直接用于单位", expression.span);
 			if (expression.operator === "+") return number;
-			if (expression.operator === "-") return numericBinary("-", 0n, number) as NumericValue;
-			if (expression.operator === "~") return ~toBigIntExact(number);
+			if (expression.operator === "-") return isQuantity(number)
+				? new Quantity(numericBinary("-", 0n, number.value) as NumericValue, number.dimension, number.displayUnit, number.hints)
+				: numericBinary("-", 0n, number) as NumericValue;
+			if (expression.operator === "~") {
+				if (!isNumeric(number)) return runtimeError("EXPECTED_NUMBER", "按位运算只接受无量纲整数", expression.span);
+				return ~toBigIntExact(number);
+			}
 			return runtimeError("UNKNOWN_OPERATOR", `未知一元操作符“${expression.operator}”`, expression.span);
 		}
 		case "binary": {
+			if (expression.operator === "->" && !dimensionsEnabled(scope)) return runtimeError("DIMENSIONS_DISABLED", "量纲计算模式未启用", expression.span);
 			if (expression.operator === ".." || expression.operator === "..=") {
-				const left = requireNumeric(evaluateExpression(expression.left, scope), expression.left.span);
-				const right = requireNumeric(evaluateExpression(expression.right, scope), expression.right.span);
-				try { return createRange(left, right, undefined, expression.operator === "..="); }
+				const left = requireArithmetic(evaluateExpression(expression.left, scope), expression.left.span);
+				const right = requireArithmetic(evaluateExpression(expression.right, scope), expression.right.span);
+				if (isUnitValue(left) || isUnitValue(right)) return runtimeError("RANGE_ERROR", "范围端点必须是数值或量纲值", expression.span);
+				try { return createArithmeticRange(left, right, undefined, expression.operator === "..="); }
 				catch (error) { return runtimeError("RANGE_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
 			}
 			if (expression.operator === "&&") return truthy(evaluateExpression(expression.left, scope)) && truthy(evaluateExpression(expression.right, scope));
 			if (expression.operator === "||") return truthy(evaluateExpression(expression.left, scope)) || truthy(evaluateExpression(expression.right, scope));
 			const left = evaluateExpression(expression.left, scope);
 			const right = evaluateExpression(expression.right, scope);
+			if (isQuantity(left) || isQuantity(right) || isUnitValue(left) || isUnitValue(right)) {
+				if (!["+","-","*","/","**",">",">=","<","<=","==","!=","->"].includes(expression.operator)) return runtimeError("QUANTITY_OPERATOR", "该操作符不支持量纲值", expression.span);
+				try { return quantityBinary(expression.operator, requireArithmetic(left, expression.left.span), requireArithmetic(right, expression.right.span)); }
+				catch (error) { return runtimeError("DIMENSION_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
+			}
 			if (isMatrix(left) || isMatrix(right)) {
 				if (!["+", "-", "*", "/"].includes(expression.operator)) return runtimeError("MATRIX_OPERATOR", "该操作符不支持矩阵", expression.span);
-				if (!isMatrix(left) && !isNumeric(left)) return runtimeError("EXPECTED_NUMBER", "矩阵只能与数值或矩阵运算", expression.left.span);
-				if (!isMatrix(right) && !isNumeric(right)) return runtimeError("EXPECTED_NUMBER", "矩阵只能与数值或矩阵运算", expression.right.span);
+				if (!isMatrix(left) && !isNumeric(left) && !isQuantity(left)) return runtimeError("EXPECTED_NUMBER", "矩阵只能与数值、量纲值或矩阵运算", expression.left.span);
+				if (!isMatrix(right) && !isNumeric(right) && !isQuantity(right)) return runtimeError("EXPECTED_NUMBER", "矩阵只能与数值、量纲值或矩阵运算", expression.right.span);
 				try { return matrixBinary(expression.operator, left, right); } catch (error) { return runtimeError("MATRIX_ERROR", error instanceof Error ? error.message : String(error), expression.span); }
 			}
 			if (Array.isArray(left) || Array.isArray(right)) return vectorBinary(expression.operator, left, right, expression.span);
@@ -108,7 +132,9 @@ export function evaluateExpression(expression: Expression, scope: RuntimeScope):
 		case "conditional": return truthy(evaluateExpression(expression.condition, scope))
 			? evaluateExpression(expression.whenTrue, scope) : evaluateExpression(expression.whenFalse, scope);
 		case "call": {
-			const callee = evaluateExpression(expression.callee, scope);
+			const callee = expression.callee.kind === "identifier" && isUnitValue(scope[expression.callee.name]) && (`__function__${expression.callee.name}` in scope)
+				? scope[`__function__${expression.callee.name}`]
+				: evaluateExpression(expression.callee, scope);
 			const args = expression.args.map((arg) => evaluateExpression(arg, scope));
 			if (isUserFunction(callee)) {
 				if (args.length !== callee.parameters.length) return runtimeError("ARITY_MISMATCH", `函数需要 ${callee.parameters.length} 个参数，实际收到 ${args.length} 个`, expression.span);
@@ -130,8 +156,8 @@ function vectorBinary(operator: string, left: RuntimeValue, right: RuntimeValue,
 	}
 	if (Array.isArray(left)) return left.map((value) => vectorBinary(operator, value, right, span));
 	if (Array.isArray(right)) return right.map((value) => vectorBinary(operator, left, value, span));
-	const a = requireNumeric(left, span); const b = requireNumeric(right, span);
-	try { return numericBinary(operator, a, b); }
+	const a = requireArithmetic(left, span); const b = requireArithmetic(right, span);
+	try { return isQuantity(a) || isQuantity(b) || isUnitValue(a) || isUnitValue(b) ? quantityBinary(operator, a, b) as RuntimeValue : numericBinary(operator, a, b); }
 	catch (error) { return runtimeError("NUMERIC_ERROR", error instanceof Error ? error.message : String(error), span); }
 }
 
@@ -146,8 +172,12 @@ function requireNumeric(value: RuntimeValue, span: SourceSpan): NumericValue {
 	if (!isNumeric(value)) return runtimeError("EXPECTED_NUMBER", "此操作需要数值", span);
 	return value;
 }
+function requireArithmetic(value: RuntimeValue, span: SourceSpan): NumericValue | Quantity | UnitValue {
+	if (!isNumeric(value) && !isQuantity(value) && !isUnitValue(value)) return runtimeError("EXPECTED_NUMBER", "此操作需要数值或量纲值", span);
+	return value;
+}
 function isNumeric(value: RuntimeValue): value is NumericValue { return typeof value === "bigint" || value instanceof Decimal || (typeof value === "object" && value !== null && "numerator" in value && "denominator" in value); }
-function truthy(value: RuntimeValue): boolean { return Boolean(value); }
+function truthy(value: RuntimeValue): boolean { return isQuantity(value) ? !toDecimal(value.value).isZero() : Boolean(value); }
 export function isUserFunction(value: unknown): value is UserFunction { return typeof value === "object" && value !== null && "kind" in value && value.kind === "userFunction"; }
 function expressionHasSi(expression: Expression): boolean {
 	if (expression.kind === "number") return /[TGMkmunp]$/.test(expression.raw);

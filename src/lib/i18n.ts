@@ -32,7 +32,7 @@ export function setLocale(locale: Locale, persist = true) {
 const messages = {
 	"zh-CN": {
 		pageTitle: "Calcuko - 多行公式计算器", pageDescription: "支持多行变量赋值、逐行结果实时预览与依赖联动更新的网页计算器。",
-		language: "语言", switchLanguage: "切换为 English", tagline: "多行公式计算器", starGitHub: "在 GitHub 点赞", version: "版本", help: "帮助", undo: "撤销", undoTitle: "撤销最近一次载入或清空",
+		language: "语言", switchLanguage: "切换为 English", tagline: "多行公式计算器", starGitHub: "在 GitHub 点赞", version: "版本", help: "帮助", undo: "撤销", undoTitle: "撤销最近一次载入或清空", dimensions: "量纲", dimensionsTitle: "启用物理量纲与单位换算", physicalUnit: "物理单位",
 		sample: "示例", sampleTitle: "载入示例公式", clear: "清除", clearTitle: "清空编辑器", editorLabel: "公式编辑器",
 		loadConfirm: "载入示例将替换当前内容，是否继续？", clearConfirm: "确定要清空全部公式吗？",
 		copied: "已复制: {value}", copyFailed: "复制失败", colorPreview: "颜色预览", variables: "变量快照", noVariables: "暂无变量", copyValue: "点击复制值",
@@ -42,6 +42,7 @@ const messages = {
 		helpFunctions: "函数：内置 Math 所有常用函数和常量。", helpSi: "词缀：支持 SI 词缀如 {codes}。",
 		helpSpaces: "空格：行内空格会被忽略，支持自由格式输入。", helpImplicit: "隐式乘法：{codes} 自动展开。",
 		helpRadix: "进制：支持 {hex}（十六进制）{bin}（二进制）{oct}（八进制）。使用 {functions} 转换结果进制。",
+		helpDimensions: "量纲：开启标题栏开关后可写 {codes}；{power} 对整个量值乘方，{unitPower} 只表示单位角标。注意 {milli} 是毫前缀，{meter} 才表示米。",
 		commonFunctions: "常用函数", constants: "常量", gotIt: "知道了",
 		offlineReady: "应用已可离线使用。", updateAvailable: "发现新版本", updateDescription: "重新加载即可完成更新。",
 		close: "关闭", closeUpdate: "关闭更新提示", reload: "重新加载", reloadUpdate: "重新加载并更新应用",
@@ -51,7 +52,7 @@ const messages = {
 	},
 	en: {
 		pageTitle: "Calcuko - Multi-line Formula Calculator", pageDescription: "A web calculator with multi-line variables, live per-line results, and dependency updates.",
-		language: "Language", switchLanguage: "切换为中文", tagline: "Multi-line Formula Calculator", starGitHub: "Star on GitHub", version: "Version", help: "Help", undo: "Undo", undoTitle: "Undo the latest sample load or clear",
+		language: "Language", switchLanguage: "切换为中文", tagline: "Multi-line Formula Calculator", starGitHub: "Star on GitHub", version: "Version", help: "Help", undo: "Undo", undoTitle: "Undo the latest sample load or clear", dimensions: "Units", dimensionsTitle: "Enable physical dimensions and unit conversion", physicalUnit: "Physical unit",
 		sample: "Sample", sampleTitle: "Load sample formulas", clear: "Clear", clearTitle: "Clear editor", editorLabel: "Formula editor",
 		loadConfirm: "Loading the sample will replace the current content. Continue?", clearConfirm: "Clear all formulas?",
 		copied: "Copied: {value}", copyFailed: "Copy failed", colorPreview: "Color preview", variables: "Variables", noVariables: "No variables", copyValue: "Click to copy value",
@@ -61,6 +62,7 @@ const messages = {
 		helpFunctions: "Functions: common Math functions and constants are built in.", helpSi: "Prefixes: SI prefixes are supported, such as {codes}.",
 		helpSpaces: "Whitespace: spaces within a line are ignored, allowing free-form input.", helpImplicit: "Implicit multiplication: {codes} are expanded automatically.",
 		helpRadix: "Radix literals: {hex} (hex), {bin} (binary), and {oct} (octal). Use {functions} to convert result radices.",
+		helpDimensions: "Dimensions: enable the header switch to use {codes}; {power} raises the whole quantity, while {unitPower} is a unit exponent. {milli} is the milli suffix, while {meter} means metres.",
 		commonFunctions: "Common functions", constants: "Constants", gotIt: "Got it",
 		offlineReady: "The app is ready for offline use.", updateAvailable: "Update available", updateDescription: "Reload to finish updating.",
 		close: "Close", closeUpdate: "Close update notification", reload: "Reload", reloadUpdate: "Reload and update the app",
@@ -97,6 +99,7 @@ export function constantDescription(name: string, chinese: string, locale = acti
 }
 
 const errorEnglish: Record<string, string> = {
+	"量纲计算模式未启用":"Dimension mode is not enabled","此操作需要数值或量纲值":"This operation requires a number or quantity","操作数的量纲不一致":"Operand dimensions do not match","换算目标必须是单位表达式":"The conversion target must be a unit expression","换算目标与原值量纲不一致":"The conversion target has an incompatible dimension","该操作符不支持量纲值":"This operator does not support quantities","单位幂的指数必须是无量纲数值":"A unit exponent must be dimensionless","偏移温标不能用于复合单位":"Offset temperature scales cannot be used in compound units","幂指数必须无量纲":"The exponent must be dimensionless","量纲指数必须是有限数值":"A dimension exponent must be finite","一元运算符不能直接用于单位":"Unary operators cannot be applied directly to units","按位运算只接受无量纲整数":"Bitwise operations only accept dimensionless integers","三角函数参数必须是角度或无量纲数值":"Trigonometric functions require an angle or dimensionless value","数组元素必须是数值或量纲值":"Array elements must be numbers or quantities","矩阵元素必须是数值或量纲值":"Matrix elements must be numbers or quantities","统计值必须是数值或量纲值":"Statistical values must be numbers or quantities","范围端点的量纲必须一致":"Range endpoints must have matching dimensions","范围步长的量纲必须与端点一致":"The range step must match the endpoint dimension","范围参数必须是数值或量纲值":"Range arguments must be numbers or quantities","solve 区间端点的量纲必须一致":"solve interval endpoints must have matching dimensions","量纲 solve 函数必须返回量纲值":"A dimensional solve function must return a quantity",
 	"函数参数必须是数值":"Function arguments must be numeric","matrix() 需要二维数组":"matrix() requires a two-dimensional array","det() 需要 Matrix 值":"det() requires a Matrix value",
 	"范围步长不能为零":"Range step cannot be zero","递增范围不能使用负步长":"An increasing range cannot use a negative step","递减范围不能使用正步长":"A decreasing range cannot use a positive step","范围参数必须是数值":"Range arguments must be numeric",
 	"参数必须是数组":"Argument must be an array","数组元素必须是数值":"Array elements must be numeric","参数必须是函数":"Argument must be a function","空数组没有平均值":"An empty array has no average","空数组不能聚合":"An empty array cannot be reduced","排序函数必须返回数值":"Sort function must return a numeric value",

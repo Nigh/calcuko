@@ -1,4 +1,5 @@
 export const storageKey = "calcuko-formulas";
+export const dimensionStorageKey = "calcuko-dimensions";
 
 export const mathFunctions: Record<string, string> = {
 	abs: "Math.abs(x) — 绝对值",
@@ -114,8 +115,8 @@ Omega = 2PI*R1 + 3R2
 
 // SI 词缀示例
 R = 10k
-C = 100n
-f = 1/(2PI*R*C)
+C1 = 100n
+f = 1/(2PI*R*C1)
 
 // 进制字面量：0x十六进制 0b二进制 0八进制
 hexVal = 0xFF
@@ -125,7 +126,7 @@ sum = hexVal + binVal + octVal
 
 // 进制转换函数：hex() bin() oct()
 dec = 255
-h = hex(dec)
+hexResult = hex(dec)
 b = bin(dec)
 o = oct(dec)`;
 export const sampleFormulaEnglish = `Vo = 13
@@ -149,8 +150,8 @@ Omega = 2PI*R1 + 3R2
 
 // SI prefix examples
 R = 10k
-C = 100n
-f = 1/(2PI*R*C)
+C1 = 100n
+f = 1/(2PI*R*C1)
 
 // Radix literals: 0x hex, 0b binary, leading-zero octal
 hexVal = 0xFF
@@ -160,6 +161,6 @@ sum = hexVal + binVal + octVal
 
 // Radix conversion functions: hex(), bin(), oct()
 dec = 255
-h = hex(dec)
+hexResult = hex(dec)
 b = bin(dec)
 o = oct(dec)`;

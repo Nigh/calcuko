@@ -55,6 +55,7 @@ calcuko/
     ├── lib/
     │   ├── builtins/                 # 位运算等分组注册的工程函数及测试
     │   ├── language/                 # 表达式语言 tokenizer、AST、Pratt parser、源码位置类型及测试
+    │   │   ├── units.ts              # 物理量纲、科学工程单位注册、换算与智能格式化
     │   ├── types.ts                  # 共享类型定义（LineResult）
     │   ├── constants.ts              # 示例公式和帮助弹窗元数据
     │   ├── i18n.ts                   # 全局中英文资源、语言检测、错误及函数说明本地化
@@ -84,6 +85,9 @@ calcuko/
 - **Header 版本号**：标题右下侧显示构建版本；组件读取 `PUBLIC_APP_VERSION`，未注入时回退为 `dev`
 - **BASE_URL 处理**：组件顶部定义 `BASE_URL = import.meta.env.BASE_URL.replace(/\/?$/, "")`，资源路径统一为 `{BASE_URL + "/favicon.svg"}`，适配子路径 `/calcuko` 部署
 - **实现方式**：表达式经 tokenizer、Pratt parser 生成 AST，再由受控解释器在显式 scope 中执行，不调用 JavaScript 动态求值
+- **可选量纲计算**：标题栏开关首次默认关闭并持久化用户选择；开启后支持 `3 km`、复合单位、`->` 换算、严格量纲传播和智能单位简化；`**` 对完整量值乘方，`^` 只表示单位角标，关闭模式后 `^` 仍为异或；范围覆盖科学工程单位并排除货币等无关量纲
+- **默认示例兼容性**：中英文示例避免使用 `C`、`h` 等内置单位名作为变量，确保开启量纲模式后不会覆盖单位
+- **量纲运行时**：`Quantity` 保存规范值、量纲指数和显示单位；数字与复合单位相乘时保留输入显示单位，结果中的整数单位幂使用 Unicode 上标（如 `m²`、`m/s²`），四则运算、幂、适用数学函数、用户函数、数组、矩阵、统计、随机范围与求解器共享量纲校验，温标使用 `degC`/`degF` 处理偏移
 - **内置函数**：暴露全部 `Math` 对象方法和常量（abs, sin, cos, sqrt, pow, PI, E 等），以及进制转换函数 `hex()` `bin()` `oct()`
 - **变量作用域**：逐行累积 scope 对象，后续行可引用前面定义的变量
 - **Unicode 变量名**：所有变量名正则使用 `\p{ID_Start}` / `\p{ID_Continue}` / `\p{Extended_Pictographic}` Unicode 属性转义，支持中文、希腊字母、emoji 等 Unicode 标识符
@@ -125,6 +129,7 @@ calcuko/
 - 使用 `localStorage`（key: `calcuko-formulas`）保存用户输入
 - 页面加载时从 localStorage 恢复，无数据则使用内置示例公式
 - 手动语言选择使用 localStorage key `calcuko-locale` 持久化；未保存时自动匹配浏览器首选语言
+- 量纲开关使用 localStorage key `calcuko-dimensions` 保存，首次访问默认关闭
 - 清除按钮把空文档写入原有 key，保持旧版本存储兼容
 - 空字符串也会从 localStorage 正确恢复；载入示例和清空前要求确认，并可在编辑器标题栏单步撤销
 
@@ -141,6 +146,7 @@ calcuko/
 - **语法高亮颜色**（在 FormulaCalculator.svelte `<style>` 中）：
   - 注释 `#94a3b8`（灰）、数值 `#f59e0b`（琥珀）、运算符 `#ec4899`（粉）、括号 `#6366f1`（靛蓝）、变量 `#0ea5e9`（天蓝）
   - 内置函数 `#a78bfa`（淡紫）、自定义函数 `#22d3ee`（青色）
+  - 物理单位 `#34d399`（翠绿，仅量纲模式开启时）
 - **编辑器选区**：文本选中背景使用半透明主题主色（玫瑰粉），保持高亮叠层文字可见
 - **错误行标识**：编辑器以半透明错误色背景和左侧红色边线标记求值失败的整行，未知字符使用红色波浪下划线显示
 - **智能补全浮层**：使用主题 base-200 背景、base-300 边框与圆角阴影，列表与浮层四边保持等量内边距；选中项使用半透明主色，函数和变量图标分别沿用函数紫与变量蓝
@@ -154,6 +160,7 @@ calcuko/
 - **Base path**：`/calcuko`（GitHub Pages 子路径部署）
 - **构建命令**：`npm run build`（输出到 `dist/`）
 - **版本注入**：CI 从 `package.json` 注入 `PUBLIC_APP_VERSION`，标签部署使用 Git 标签名；本地开发和未注入构建显示 `dev`
+- **当前发布版本**：`3.0.0`，对应 Git 标签 `v3.0.0`
 
 ## 开发命令
 

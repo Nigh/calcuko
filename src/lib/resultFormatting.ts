@@ -3,14 +3,16 @@ import { colorBuiltins, isColorValue, type ColorValue } from "./builtins/colors"
 import { formatNumeric, isNumericValue, toBigIntExact, toDecimal, type NumericValue, Rational } from "./language/numeric";
 import { formatRadixString, formatValue } from "./evaluator";
 import { isMatrix } from "./language/matrix";
+import { formatQuantity, isQuantity } from "./language/units";
 import { t } from "./i18n";
 
-export type ResultValueKind = "bigint" | "decimal" | "rational" | "color" | "matrix" | "other";
+export type ResultValueKind = "bigint" | "decimal" | "rational" | "quantity" | "color" | "matrix" | "other";
 export type ResultFormatName = "default" | "decimal" | "hex" | "binary" | "octal" | "scientific" | "si" | "rgb" | "hsl" | "hsv" | "yuv" | "rgb565" | "hexColor";
 export type ResultFormat = { name: ResultFormatName; precision?: number };
 export type FormatOption = { name: ResultFormatName; label: string; precisionMode?: "decimalPlaces" | "significantDigits" };
 
 export const resultValueKind = (value: unknown): ResultValueKind => {
+	if (isQuantity(value)) return "quantity";
 	if (typeof value === "bigint") return "bigint";
 	if (value instanceof Decimal) return "decimal";
 	if (value instanceof Rational) return "rational";
@@ -42,6 +44,7 @@ const localized = (options: FormatOption[]) => options.map((option) => ({ ...opt
 
 export function formatOptions(value: unknown): FormatOption[] {
 	if (isColorValue(value)) return localized(colorOptions);
+	if (isQuantity(value)) return localized(decimalOptions);
 	if (!isNumericValue(value)) return [];
 	try { toBigIntExact(value); return localized(integerOptions); } catch { /* not an exact integer */ }
 	return localized(value instanceof Rational ? rationalOptions : decimalOptions);
@@ -72,6 +75,13 @@ const colorText = (value: ColorValue, format: ResultFormat): string => {
 };
 
 export function formatResult(value: unknown, format: ResultFormat = { name: "default" }, hasSi = false): string {
+	if (isQuantity(value)) {
+		if (format.name === "default") return formatQuantity(value);
+		if (format.name === "decimal") return formatQuantity(value, (number) => toDecimal(number).toFixed(decimalPlaces(format)));
+		if (format.name === "scientific") return formatQuantity(value, (number) => scientific(number, significant(format)));
+		if (format.name === "si") return formatQuantity(value, (number) => si(number, significant(format)));
+		return formatQuantity(value);
+	}
 	if (format.name === "default") {
 		if (hasSi && isNumericValue(value)) return si(value, 6);
 		return formatValue(value);

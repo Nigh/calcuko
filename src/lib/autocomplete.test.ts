@@ -28,4 +28,9 @@ describe("completionOptions", () => {
 
 		expect(sqrt).toMatchObject({ detail: "自定义函数 (value)", boost: 2 });
 	});
+
+	it("only suggests physical units when dimension mode is enabled", () => {
+		expect(completionOptions("k", 1).some(({label})=>label==="km")).toBe(false);
+		expect(completionOptions("k", 1, true)).toEqual(expect.arrayContaining([expect.objectContaining({label:"km",type:"constant",detail:"物理单位"})]));
+	});
 });

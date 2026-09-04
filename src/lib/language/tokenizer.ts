@@ -2,7 +2,7 @@ import { LanguageError, type SourcePosition, type Token, type TokenKind } from "
 
 const identStart = /^(?:[\p{ID_Start}$]|\p{Extended_Pictographic})$/u;
 const identContinue = /^(?:[\p{ID_Continue}$]|\p{Extended_Pictographic})$/u;
-const operators = ["**", "//", "==", "!=", ">=", "<=", "&&", "||", "=>", "<<", ">>", "..=", "..", "+", "-", "*", "/", "%", "$", "=", ">", "<", "!", "~", "&", "|", "^"];
+const operators = ["**", "//", "==", "!=", ">=", "<=", "&&", "||", "=>", "->", "<<", ">>", "..=", "..", "+", "-", "*", "/", "%", "$", "=", ">", "<", "!", "~", "&", "|", "^"];
 
 export function tokenize(source: string, options: { tolerant?: boolean } = {}): Token[] {
 	const tokens: Token[] = [];

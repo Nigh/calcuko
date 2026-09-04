@@ -14,6 +14,21 @@ test("shows the build version beside the title", async ({ page }) => {
 	await expect(page.getByLabel(/^版本 /)).toHaveText(/^(?:dev|v\d+\.\d+\.\d+)$/);
 });
 
+test("dimension switch defaults off, recalculates, and persists the choice", async ({ page }) => {
+	await page.addInitScript(() => localStorage.removeItem("calcuko-dimensions"));
+	await page.goto("./");
+	await setSource(page, "120 km/h -> mph");
+	await expect(page.locator('[data-result-line="1"]')).toContainText("量纲计算模式未启用");
+	const toggle=page.getByRole("checkbox",{name:"量纲"});
+	await expect(toggle).not.toBeChecked();
+	await toggle.check();
+	await expect(page.locator('[data-result-line="1"]')).toContainText("mph");
+	await expect(page.locator(".token-unit",{hasText:"km"})).toBeVisible();
+	await expect.poll(()=>page.evaluate(()=>localStorage.getItem("calcuko-dimensions"))).toBe("true");
+	await page.reload();
+	await expect(page.getByRole("checkbox",{name:"量纲"})).toBeChecked();
+});
+
 test("detects English, localizes all surfaces, and persists manual switching", async ({ page }) => {
 	await page.addInitScript(() => localStorage.removeItem("calcuko-locale"));
 	await page.goto("./");
