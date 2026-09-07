@@ -179,7 +179,12 @@ export function quantityBinary(operator: string, leftValue: NumericValue | Quant
 	}
 	const left = asQuantity(leftValue), right = asQuantity(rightValue);
 	if (["+","-",">",">=","<","<=","==","!="].includes(operator)) {
-		if (!sameDimension(left.dimension, right.dimension)) throw new Error("操作数的量纲不一致");
+		if (!sameDimension(left.dimension, right.dimension)) {
+			if (operator === "+" && toDecimal(left.value).isZero()) return right;
+			if (["+","-"].includes(operator) && toDecimal(right.value).isZero()) return left;
+			if (operator === "-" && toDecimal(left.value).isZero()) return new Quantity(numericBinary("-", 0n, right.value) as NumericValue, right.dimension, right.displayUnit, right.hints);
+			throw new Error("操作数的量纲不一致");
+		}
 		const result = numericBinary(operator, left.value, right.value);
 		if (typeof result === "boolean") return result;
 		const temperatureDifference = operator === "-" && left.displayUnit && right.displayUnit && !left.displayUnit.offset.isZero() && !right.displayUnit.offset.isZero();
@@ -219,6 +224,8 @@ const bestUnit = (quantity: Quantity): UnitValue | undefined => {
 	const hinted = candidates.filter((unit) => quantity.hints.has(unit.symbol));
 	if (hinted.length) return hinted.map((unit)=>({unit,magnitude:toDecimal(quantity.value).div(unit.factor).abs()})).sort((a,b)=>Number(b.magnitude.gte(1)&&b.magnitude.lt(1000))-Number(a.magnitude.gte(1)&&a.magnitude.lt(1000)))[0].unit;
 	if (quantity.displayUnit) {
+		const parts=quantity.displayUnit.symbol.split(/[·/]/).map((symbol)=>units.get(symbol.replace(/\^.*$/, "")));
+		if(parts.length>1&&parts.some((unit)=>unit&&!(Object.keys(unit.dimension).length===1&&Object.values(unit.dimension)[0]===1)))return quantity.displayUnit;
 		const named=candidates.find((unit)=>unit.factor.eq(quantity.displayUnit!.factor));
 		return named ?? quantity.displayUnit;
 	}

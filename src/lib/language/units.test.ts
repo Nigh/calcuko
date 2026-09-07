@@ -49,6 +49,18 @@ describe("physical dimensions and units", () => {
 		expect(result.lineResults.map((line) => line.text)).toEqual(["1.5 m", "2 s", "matrix([[2 m, 4 m]])"]);
 	});
 
+	it("supports dimensional stiffness matrices and preserves torque units", () => {
+		const result=evaluateUnits("K0=matrix([[1000 N/m,0,20 N/rad],[0,800 N/m,-10 N/rad],[20 N,-10 N,5 N m/rad]])\nq=col(0.002 m,-0.001 m,0.05 rad)\nf=K0*q\n1 N m\n2 kg * 3 m/s^2");
+		expect(result.lineResults.map((line)=>line.text)).toEqual([
+			"matrix([[1000 N/m, 0, 20 N/rad], [0, 800 N/m, -10 N/rad], [20 N, -10 N, 5 N·m/rad]])",
+			"matrix([[0.002 m], [-0.001 m], [0.05 rad]])",
+			"matrix([[3 N], [-1.3 N], [0.3 N·m]])",
+			"1 N·m",
+			"6 N",
+		]);
+		expect(evaluateUnits("1 m + 1 s").lineResults[0]).toMatchObject({ type: "error", errorCode: "DIMENSION_ERROR" });
+	});
+
 	it("keeps colliding built-in functions callable and supports dimensional ranges", () => {
 		const result=evaluateUnits("min(3, 2)\nrange(1 m, 3 m)\nfn travel(v,t)=v*t\ntravel(10 m/s, 2 s)");
 		expect(result.lineResults.map((line)=>line.text)).toEqual(["2", "[1 m, 2 m]", "<function travel(v, t)>", "20 m"]);
