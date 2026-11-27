@@ -97,7 +97,7 @@ calcuko/
 - **解构赋值**：支持 `[a,b,c]=[10,20,30]`；右侧必须是同长度数组，校验完成后才原子写入 scope
 - **范围**：`start..stop` 为不含终点范围，`start..=stop` 包含终点，`range(start,stop,step?)` 支持显式步长；单次最多生成 10,000 项
 - **数组运算**：算术操作符支持递归逐元素运算、标量广播及同形校验；内置聚合、平均、映射、过滤、排序、反转和去重函数
-- **矩阵**：`matrix(rows)` 将矩形二维数值数组转为独立 Matrix 类型，`row(values...)` 和 `col(values...)` 分别构造单行、单列矩阵；支持矩阵/标量运算、矩阵乘法与 `det()` 精确行列式；结果栏默认以内容自适应宽度、左右方括号包围且最多 12 行的可滚动二维表展示
+- **矩阵**：`matrix(rows)` 将矩形二维数值数组转为独立 Matrix 类型；也可用 `matrix(row(...), ...)` 按行或 `matrix(col(...), ...)` 按列构造矩阵，要求向量方向一致且尺寸兼容；`row(values...)` 和 `col(values...)` 分别构造单行、单列矩阵；支持矩阵/标量运算、矩阵乘法与 `det()` 精确行列式；结果栏默认以内容自适应宽度、左右方括号包围且最多 12 行的可滚动二维表展示
 - **位运算函数**：所有函数接收显式正位宽，支持任意精度掩码、旋转、bit/byte/nibble 翻转、bit count、奇偶校验及 pack/unpack
 - **数论函数**：BigInt 原生实现 `isPrime`、`primeFact`、`gcd`、`lcm`，覆盖负数、0 和数组/可变参数输入
 - **ECC**：`eccEncode`/`eccDecode` 实现 1–4096 数据位的 Hamming SECDED；解码以 RuntimeRecord 区分 clean、corrected、double-error

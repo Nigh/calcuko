@@ -154,9 +154,15 @@ export const mathContext: RuntimeScope = {
 	rat: (numerator: unknown, denominator: unknown = 1n) => new Rational(convertBigInt(numerator), convertBigInt(denominator)),
 	range: (start: unknown, stop: unknown, step?: unknown) => createArithmeticRange(asArithmetic(start), asArithmetic(stop), step === undefined ? undefined : asArithmetic(step)),
 	...arrayBuiltins,
-	matrix: (rows: unknown) => {
-		if (!Array.isArray(rows)) throw new Error("matrix() 需要二维数组");
-		return new Matrix(rows);
+	matrix: (...parts: unknown[]) => {
+		if (parts.length === 1 && Array.isArray(parts[0])) return new Matrix(parts[0]);
+		if (!parts.length || !parts.every(isMatrix)) throw new Error("matrix() 需要二维数组或行/列矩阵");
+		const vectors = parts as Matrix[];
+		if (vectors.every((vector) => vector.rowCount === 1)) return new Matrix(vectors.map((vector) => vector.rows[0]));
+		if (vectors.every((vector) => vector.columnCount === 1) && vectors.every((vector) => vector.rowCount === vectors[0].rowCount)) {
+			return new Matrix(vectors[0].rows.map((_, row) => vectors.map((vector) => vector.rows[row][0])));
+		}
+		throw new Error("matrix() 需要等长且方向一致的行或列矩阵");
 	},
 	row: (...values: RuntimeValue[]) => new Matrix([values]),
 	col: (...values: RuntimeValue[]) => new Matrix(values.map((value) => [value])),

@@ -4,6 +4,10 @@ import { evaluateSource } from "../evaluator";
 describe("matrix", () => {
 	it("constructs and formats a dedicated matrix value", () => {
 		expect(evaluateSource("matrix([[1,2],[3,4]])").lineResults[0].text).toBe("matrix([[1, 2], [3, 4]])");
+		expect(evaluateSource("matrix(col(1,3),col(2,4))").lineResults[0].text).toBe("matrix([[1, 2], [3, 4]])");
+		expect(evaluateSource("matrix(row(1,2),row(3,4))").lineResults[0].text).toBe("matrix([[1, 2], [3, 4]])");
+		expect(evaluateSource("matrix(col(1),col(2,3))").lineResults[0]).toMatchObject({ type: "error", errorCode: "FUNCTION_ERROR" });
+		expect(evaluateSource("matrix(row(1,2),col(3,4))").lineResults[0]).toMatchObject({ type: "error", errorCode: "FUNCTION_ERROR" });
 	});
 
 	it("constructs row and column matrices with variadic sugar", () => {
