@@ -46,7 +46,7 @@ export const mathFunctions: Record<string, string> = {
 	oddParity: "oddParity(width, value) — 计算奇校验位",
 	pack: "pack(bytes, values) — 将整数数组打包",
 	unpack: "unpack(bytes, count, value) — 将整数拆分为数组",
-	matrix: "matrix(rows) — 从二维数组构造矩阵",
+	matrix: "matrix(rows) / matrix(col(...), ...) — 从行数组或列向量构造矩阵",
 	row: "row(values...) — 构造单行矩阵",
 	col: "col(values...) — 构造单列矩阵",
 	det: "det(matrix) — 精确计算方阵行列式",
